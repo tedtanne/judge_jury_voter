@@ -1,0 +1,4 @@
+# Runtime: the Nash broker, domain archetypes and evaluation use only the standard library.
+# Test tooling:
+pytest>=8
+pytest-cov>=5
