@@ -1,14 +1,8 @@
 """Shape tests for the domain role archetypes. No API key needed."""
 
+from jjv import registry
 from jjv.domain_roles import DOMAIN_PRESETS, DOMAIN_ROLES
 from jjv.nash import NASH_AGENT
-
-# Archetype ids the presets rely on from the existing scaffold registry.
-EXISTING_IDS = {
-    "security_reviewer", "attestation_architect", "systems_integrator",
-    "mission_assurance_officer", "staff_engineer", "product_lead",
-    "technical_writer", "simplifier",
-}
 
 
 def test_ids_unique_and_library_only():
@@ -39,10 +33,9 @@ def test_personas_carry_house_rules_and_grounding():
 
 
 def test_presets_reference_known_archetypes():
-    known = EXISTING_IDS | {r["id"] for r in DOMAIN_ROLES} | {NASH_AGENT["id"]}
     for name, members in DOMAIN_PRESETS.items():
         assert 4 <= len(members) <= 6, name
-        assert set(members) <= known, (name, set(members) - known)
+        assert set(members) <= set(registry.BY_ID), (name, set(members) - set(registry.BY_ID))
 
 
 def test_nash_agent_v2_covers_coalitions_and_computability():

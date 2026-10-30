@@ -1,9 +1,9 @@
 ---
 title: Domain agents and the research library
-description: How the papers in the Judge_Jury_Voter project map to subject clusters, which archetype covers each cluster, the six domain role archetypes added in October 2026, and library housekeeping. Read before adding papers or archetypes.
+description: How the papers in the Judge_Jury_Voter project map to subject clusters, which archetype covers each cluster, the eight domain role archetypes added in October 2026, and library housekeeping. Read before adding papers or archetypes.
 status: draft
 owner: Ted
-updated: 2026-10-17
+updated: 2026-10-30
 ---
 
 # Domain agents and the research library
@@ -28,7 +28,7 @@ Every new archetype is a role, not a person. Each one carries a `grounded_in` li
 
 The Evidence Auditor's papers include deliberately contested work. *Feeling the Future* failed independent replication. The emotional-contagion study drew an editorial expression of concern over consent. The faces-to-orientation classifier is a standing example of a dual-use inference about a protected trait. These papers are in the agent's grounding as cautionary cases, not as standards to emulate.
 
-## The six domain role archetypes
+## The eight domain role archetypes
 
 | Archetype | Judges | Veto dimension | Weight |
 |---|---|---|---|
@@ -38,12 +38,29 @@ The Evidence Auditor's papers include deliberately contested work. *Feeling the 
 | The Silicon Compiler Architect | IR and lowering design, retargetability, equivalence evidence, performance honesty, determinism and hardening | none | 1.0 |
 | The Complexity Scientist | Adaptivity awareness, coordination-mechanism fit, regime and scale behavior, feedback and control, trust dynamics | none | 0.9 |
 | The Evidence Auditor | Claim support, evidence quality, generalization, research ethics, calibration | `evidence` | 1.0 |
+| The Thermodynamicist | Physical correctness, quantitative precision, level-of-stack honesty, honest caveats, substrate fairness | `physical-correctness` | 1.2 |
+| The Metering Economist | Cost recovery, incentive design, meterability, Goodhart resistance, savings allocation | `cost-recovery` | 1.1 |
 
 Each persona also carries shared house rules:
 - It is a role archetype, not an impersonation.
 - Findings must name a location in the subject.
 - Blockers are raised only on the archetype's own veto dimensions. Anywhere else, Nash_Agent records a blocker as cheap talk, so jurors use "major" there.
 - Papers from the library are named when used.
+
+## The physics-of-compute archetypes
+
+Two role archetypes cover subjects about the physics and the pricing of computation. These are subjects no other juror on the roster can rule on.
+
+**The Thermodynamicist** judges whether claims about energy, information and physical limits are true at the level of the stack where they are made. It checks three things:
+- each bound is named for what it actually bounds;
+- figures for a gate, a chip and a whole system are kept apart;
+- caveats are stated wherever an argument leans on them.
+
+Its veto is on `physical-correctness`.
+
+**The Metering Economist** judges whether a price recovers the full cost of the asset, what behavior its billing unit rewards, and who captures the savings. That covers cost recovery, meterability, Goodhart resistance, savings sharing and the ratchet effect. Its veto is on `cost-recovery`, so a price that cannot pay for the plant is a credible blocker rather than cheap talk.
+
+Both records carry a `canon` list alongside `grounded_in`. It names standard references from outside the project library: Landauer, Bennett, Horowitz, Koomey and Weitzman.
 
 ## Nash_Agent v2
 
@@ -65,8 +82,9 @@ The kernel is unchanged; only the persona and its grounding changed.
 | Compiler & Hardware Review | Silicon Compiler Architect, Attestation Architect, Systems Integrator, Consensus Verifier, Simplifier | High-level code to hardware, accelerators, heterogeneous targets |
 | Emergence Lab | Complexity Scientist, Nash_Agent, Evidence Auditor, Staff Engineer, Product Lead | Swarms, markets, multi-agent platforms (including this one) |
 | Paper Review | Evidence Auditor, Technical Writer, Complexity Scientist, Simplifier | Reviewing papers, whitepapers and research-heavy docs |
+| Physics of Compute | Thermodynamicist, Metering Economist, Silicon Compiler Architect, Evidence Auditor, Nash_Agent | Energy, physical limits and pricing of computation; usage-based pricing models |
 
-The presets assume the scaffold's existing ids: `security_reviewer`, `attestation_architect`, `systems_integrator`, `staff_engineer`, `product_lead`, `technical_writer`, `simplifier`. Rename them in `DOMAIN_PRESETS` if the registry uses different ones.
+Every member id resolves in `jjv/registry.py`; the base and legend ids (`security_reviewer`, `attestation_architect`, `systems_integrator`, `staff_engineer`, `product_lead`, `technical_writer`, `simplifier`) are defined in `jjv/archetypes.py` and `jjv/legends.py`.
 
 ## Library housekeeping
 

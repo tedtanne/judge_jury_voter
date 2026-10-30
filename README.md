@@ -16,7 +16,8 @@ The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs durin
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest -q                                          # 22 unit tests, no API key needed
+pytest -q                                          # 33 unit tests, no API key needed
+python -m jjv.registry > docs/archetypes.md        # regenerate the archetype catalog
 python -m jjv.eval_broker --trials 300 --seed 7    # Nash broker vs weighted vote
 ```
 
@@ -26,21 +27,21 @@ Everything in this repository runs on the Python standard library alone. `requir
 
 | Piece | What it does | Where |
 |---|---|---|
+| Default archetypes | Six generic jurors that auto-convene by discipline, including the Drafter (the Generator) | `jjv/archetypes.py` |
+| Legend roster | 31 trait-profile and mission archetypes, plus the ten original preset rooms; `PRESET_PANELS` merges all 19 presets | `jjv/legends.py` |
+| Domain archetypes | Eight role archetypes with rubrics, veto dimensions, presets, and the papers their standards come from | `jjv/domain_roles.py` |
 | Nash_Agent | Archetype record, plus the deterministic bargaining kernel that brokers the Jury round | `jjv/nash.py` |
-| Domain archetypes | Six role archetypes with rubrics, veto dimensions, presets, and the papers their standards come from | `jjv/domain_roles.py` |
+| Registry | One lookup for all 46 archetypes and 19 presets, the veto-dimension vocabulary, `validate()`, and the generated catalog | `jjv/registry.py`, `docs/archetypes.md` |
 | Evaluation | Nash broker vs weighted voting: offline simulation plus a live-comparison hook | `jjv/eval_broker.py` |
-| Tests and CI | 22 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
-| Design docs | The full swarm architecture and roadmap, the broker spec, and the domain-agent library map | `docs/` |
+| Tests and CI | 33 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
+| Design docs | The full swarm architecture and roadmap, the broker spec, the domain-agent library map, and the catalog | `docs/` |
 
-**Status.** This repository holds the negotiation layer and its evaluation. The rest of the swarm described in [`docs/architecture.md`](docs/architecture.md) will land here as it is published:
+**Status.** This repository holds the full archetype registry (46 archetypes, 19 presets, every preset member defined), the negotiation layer, and its evaluation. Still to land from the scaffold described in [`docs/architecture.md`](docs/architecture.md):
 - the orchestrator on the Claude Agent SDK;
 - the Voter;
-- the base and legend archetype roster;
 - the FastAPI backend and web UI.
 
-Presets in `jjv/domain_roles.py` and `jjv/nash.py` refer to base-roster ids such as `security_reviewer` and `staff_engineer`, which come from that roster.
-
-Design rationale is in [`docs/architecture.md`](docs/architecture.md). The broker spec is in [`docs/nash-agent.md`](docs/nash-agent.md), and the domain archetypes are in [`docs/domain-agents.md`](docs/domain-agents.md).
+Design rationale is in [`docs/architecture.md`](docs/architecture.md). The broker spec is in [`docs/nash-agent.md`](docs/nash-agent.md), the domain archetypes are in [`docs/domain-agents.md`](docs/domain-agents.md), and every archetype and preset is listed in [`docs/archetypes.md`](docs/archetypes.md).
 
 **About the archetypes.** "Legend" archetypes are trait profiles: lenses *inspired by* how notable people are publicly known to work. They are not impersonations. They never speak as those people, and no endorsement or affiliation is implied. Role archetypes, such as The Cryptographer and Nash_Agent, are modeled on a discipline, not on any person.
 
