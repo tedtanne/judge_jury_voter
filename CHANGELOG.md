@@ -6,11 +6,20 @@
 - **Orchestrator** (`jjv/orchestrator.py`): review and generate runs, retries, quorum, per-run spending limit, saved run records, reputation across runs, and `live_run_fn` for `run_live_comparison`.
 - **Claude backend** (`jjv/backend.py`) and **CLI** (`jjv/cli.py`). The SDK is in `requirements-live.txt`; tests and CI do not need it.
 - **Voter** (`jjv/voter.py`) and **verdict contract** (`jjv/verdicts.py`).
-- **Tests**: 46 new, bringing the total to 79.
+- **Tests**: 82 new, bringing the total to 115.
 
 ### Fixed
 - Bare `pytest` failed to import `jjv`; `pytest.ini` now sets the path.
 - `docs/architecture.md` said the scaffold zip held these modules. It does not.
+- Found by the first full panel review of this code:
+  - **Empty settlements.** On panels over `EXACT_LIMIT` with two veto-holders, the broker's local search stalled and chose nothing. It now starts with one fix per veto-holder. The exact path and the published evaluation are unchanged.
+  - **File access.** Judges' read tools could reach any path on the machine; a hook now confines them to the repository.
+  - **Run records** defaulted to a folder inside the repo Judges read, which exposed their identities.
+  - **Crashes.** SDK and malformed-reply errors escaped and killed the run; they now count as one Judge's failure, and work is saved after each phase.
+  - **Lost findings.** A Jury round could erase a veto blocker or a finding two Judges endorsed to each other.
+  - **Spending.** Timed-out calls were not counted, and queued calls checked the limit before earlier calls had spent.
+  - **Best round** could prefer an unapproved draft or one a veto-holder never saw.
+  - **Fences.** Digest and revision notes are now fenced with unguessable tags.
 
 ## 2026-10-30
 
