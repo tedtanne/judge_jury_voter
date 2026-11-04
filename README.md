@@ -50,8 +50,8 @@ python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 **Status.** This repository holds the full archetype registry (46 archetypes, 19 presets, every preset member defined), the negotiation layer and its evaluation, the orchestrator, the Voter, and a CLI. Still to come: the FastAPI backend and web UI, and the live broker comparison on real subjects.
 
 **Next steps**, in recommended order (details in [`docs/architecture.md`](docs/architecture.md#next-steps)):
-1. Finish a full-model review including the Jury round, with `--max-usd 10`.
-2. Merge the `orchestrator` branch through a pull request, so CI runs on Python 3.10–3.12.
+1. Merge the `orchestrator` branch through a pull request, so CI runs on Python 3.10–3.12.
+2. Finish a full-model review including the Jury round, with `--max-usd 10`.
 3. Show Judges the brief in generate mode, and carry findings across rounds.
 4. Make the weighted-vote baseline fair on live panels, then run the live broker comparison.
 5. Decide the open incentive questions in the Voter and the broker.

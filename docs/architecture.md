@@ -120,8 +120,8 @@ What remains to reach production is the Phase 6 hardening below: a real queue, P
 
 In recommended order, as of 2026-11-04. Each step makes the next one more trustworthy.
 
-1. **Finish a full review with the Jury round.** The first full-model review ran out of budget before deliberation: five Judges with repo access cost $3.33 of a $5 limit, leaving too little for the Jury. Rerun it on this branch with `--max-usd 10`. Spending is also split per phase, not planned, so the Judge round should leave a reserve for the Jury.
-2. **Merge `orchestrator` into `main` through a pull request.** CI runs only on `main` and on pull requests, so the Python 3.10 and 3.11 runs have not happened for this code yet.
+1. **Merge `orchestrator` into `main` through a pull request.** CI runs only on `main` and on pull requests, so this is what tests the code on Python 3.10 and 3.11.
+2. **Finish a full review with the Jury round.** The first full-model review ran out of budget before deliberation: five Judges with repo access cost $3.33 of a $5 limit, leaving too little for the Jury. Rerun it with `--max-usd 10`. Spending is also split per phase, not planned, so the Judge round should leave a reserve for the Jury.
 3. **Show Judges the brief in generate mode.** Judges and the blind panel see only the draft, so a polished draft that misses the brief can still score well.
 4. **Carry findings across generate rounds.** Deferred findings are "on record" only in the run file. The next round starts fresh, and nothing checks that a chosen fix was made.
 5. **Make the weighted-vote baseline fair on live panels.** Live finding ids are unique per Judge, so votes never add up across Judges as they do in the simulation. Fix this before step 6 or the comparison is not like for like. Matching equivalent findings is the hard part.
@@ -130,7 +130,7 @@ In recommended order, as of 2026-11-04. Each step makes the next one more trustw
    - One low-scoring Judge can block approval without holding a veto, because the consensus is a plain weighted mean.
    - A veto-holder chooses its own finding's dimension, so it can label any complaint as its veto area.
    - `change_aversion` is self-reported, and a Judge sees the proposal before setting it.
-8. **Add an MCP server.** It would let Claude Code, Claude Desktop and other MCP clients call the panels directly, as a usable interface well before the web UI. Build it after the merge in step 2, in two stages:
+8. **Add an MCP server.** It would let Claude Code, Claude Desktop and other MCP clients call the panels directly, as a usable interface well before the web UI. Build it after the merge in step 1, in two stages:
    - **Free tools first:** `list_panels`, `list_archetypes`, `get_run`, and `settle`, which re-runs the Voter and Nash on a saved run at a different budget with no model calls.
    - **Paid tools second:** `review` and `generate`, off unless enabled. An AI would be choosing when to spend, so they need a low default limit and a hard maximum the caller cannot raise. Runs take minutes, so they should return a run id at once and report through `get_run`. Repositories must come from a configured allow-list, not from the caller.
 9. **Build the web interface (Phase 3).** Do this after the steps above, so the interface sits on a loop whose results can be trusted.
