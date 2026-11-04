@@ -1,7 +1,7 @@
 import pytest
 
 from jjv.registry import get
-from jjv.verdicts import VerdictError, digest, normalize, schema
+from jjv.verdicts import VerdictError, carry_forward, digest, normalize, schema
 from jjv.voter import credible_vetoes, merge_findings, summary, tally
 
 
@@ -29,6 +29,8 @@ def test_schema_requires_every_rubric_dimension():
 
 @pytest.mark.parametrize("bad", [
     None, {}, {"recommendation": "maybe"}, {"recommendation": "approve", "scores": {}},
+    {"recommendation": "approve", "scores": ["x"]},
+    {"recommendation": "approve", "scores": "x"},
 ])
 def test_normalize_rejects_malformed_replies(bad):
     with pytest.raises(VerdictError):
@@ -57,6 +59,15 @@ def test_revision_keeps_own_ids_and_cannot_claim_anothers():
     assert [f["id"] for f in revised["findings"]] == ["A-2", "A-3"]
 
 
+def test_malformed_lists_raise_verdict_errors_only():
+    a = get("staff_engineer")
+    for extra in ({"findings": "x"}, {"findings": [3]}, {"endorses": 7}):
+        with pytest.raises(VerdictError):
+            normalize(raw(a) | extra, a, "A")
+    v = normalize(raw(a, findings=[finding(id=["unhashable"])]), a, "A")
+    assert v["findings"][0]["id"] == "A-1"
+
+
 def test_a_kept_finding_keeps_its_id_even_when_the_model_omits_it():
     a = get("staff_engineer")
     first = normalize(raw(a, findings=[finding(title="kept")]), a, "A")
@@ -75,9 +86,40 @@ def test_endorsements_must_exist_and_belong_to_someone_else():
 def test_digest_hides_identity_and_the_viewers_own_verdict():
     a = verdict("thermodynamicist", "A", findings=[finding()])
     b = verdict("staff_engineer", "B")
-    text = digest([a, b], viewer="B", settlement_text="SETTLED")
-    assert "A-1" in text and "Judge B" not in text and "SETTLED" in text
+    text = digest([a, b], viewer="B", fence="f1", settlement_text="SETTLED")
+    assert "A-1" in text and "Judge B" not in text
+    assert text.index("A-1") < text.index("</f1>") < text.index("SETTLED")
     assert "thermodynamicist" not in text and "Thermodynamicist" not in text
+
+
+def test_mutual_drop_and_endorse_cannot_erase_a_finding():
+    a, b = get("staff_engineer"), get("product_lead")
+    first = [normalize(raw(a, findings=[finding()]), a, "A"),
+             normalize(raw(b, findings=[finding()]), b, "B")]
+    ids = {"A-1", "B-1"}
+    final = [normalize(raw(a) | {"endorses": ["B-1"]}, a, "A", previous=first[0], known_ids=ids),
+             normalize(raw(b) | {"endorses": ["A-1"]}, b, "B", previous=first[1], known_ids=ids)]
+    kept, restored = carry_forward(first, final)
+    assert sorted(restored) == ["A-1", "B-1"]
+    assert {r["id"] for r in merge_findings(kept)} == ids
+
+
+@pytest.mark.parametrize("revised", [[], [finding("major", "security")],
+                                     [finding("blocker", "style")]])
+def test_a_veto_blocker_survives_the_jury_however_it_is_dropped(revised):
+    a = get("security_reviewer")
+    first = [normalize(raw(a, findings=[finding("blocker", "security")]), a, "A")]
+    revised = [f | {"id": "A-1"} for f in revised]
+    final = [normalize(raw(a, findings=revised), a, "A", previous=first[0])]
+    kept, restored = carry_forward(first, final)
+    assert restored == ["A-1"] and len(credible_vetoes(kept)) == 1
+
+
+def test_a_finding_nobody_endorsed_may_be_withdrawn():
+    a = get("staff_engineer")
+    first = [normalize(raw(a, findings=[finding()]), a, "A")]
+    kept, restored = carry_forward(first, [normalize(raw(a), a, "A", previous=first[0])])
+    assert restored == [] and kept[0]["findings"] == []
 
 
 def test_all_approving_high_score_is_approved():

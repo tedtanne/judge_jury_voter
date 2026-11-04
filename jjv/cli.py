@@ -4,7 +4,8 @@
     git diff | python -m jjv.cli review - --discipline code
     python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 
-Live runs call Claude and spend money, up to --max-usd. Run records go to data/runs/.
+Live runs call Claude and spend money, up to --max-usd. Run records go to ~/.jjv/runs,
+outside any repo, because Judges must not be able to read them.
 """
 
 from __future__ import annotations
@@ -35,7 +36,7 @@ def parser() -> argparse.ArgumentParser:
     ap.add_argument("--revision-budget", type=float, default=8.0)
     ap.add_argument("--max-rounds", type=int, default=3)
     ap.add_argument("--threshold", type=float, default=4.0)
-    ap.add_argument("--store", default="data/runs")
+    ap.add_argument("--store", default=str(Path.home() / ".jjv" / "runs"))
     ap.add_argument("--out", help="generate: write the final draft here")
     return ap
 
@@ -46,6 +47,8 @@ def progress(event: dict) -> None:
     elif event["type"] == "verdict":
         print(f"  {event['archetype_id']}: {event['recommendation']} "
               f"({event['overall']:g}/5)", file=sys.stderr)
+    elif event["type"] == "note":
+        print(f"  note: {event['text']}", file=sys.stderr)
     elif event["type"] == "failure":
         print(f"  {event['archetype_id']} FAILED: {event['error']}", file=sys.stderr)
 
@@ -64,7 +67,11 @@ def main(argv: list[str] | None = None) -> int:
                     repo=args.repo, max_usd=args.max_usd, store=args.store,
                     revision_budget=args.revision_budget, max_rounds=args.max_rounds,
                     threshold=args.threshold)
-    orchestrator = Orchestrator(ClaudeBackend(), config, progress)
+    try:
+        orchestrator = Orchestrator(ClaudeBackend(), config, progress)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
     entry = orchestrator.review if args.mode == "review" else orchestrator.generate
     run = asyncio.run(entry(text, panel))
 

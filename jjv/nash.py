@@ -437,7 +437,13 @@ class NashBroker:
         else:
             notes.append(f"{len(optional)} optional findings; used local search "
                          "(add/drop/swap). Settlement is a local optimum.")
-            best = D
+            # With two veto-holders, each one's fix costs the other a little, so no single
+            # addition to D is feasible and add/drop/swap would stall on an empty list.
+            # Starting with one fix per veto-holder steps over that gap.
+            seed = D | {max((k for k in optional if k in p.values),
+                            key=lambda k: (p.values[k], k), default=None)
+                        for p in vetoers} - {None}
+            best = seed if feasible(seed) else D
             improved = True
             while improved:
                 improved = False
@@ -450,6 +456,10 @@ class NashBroker:
                     top = max(moves, key=score)
                     if score(top) > score(best):
                         best, improved = top, True
+
+        if optional and best == D:
+            notes.append("No optional finding was chosen: every addition leaves a veto-holder "
+                         "worse off than blocking, or exceeds the budget.")
 
         u = {pid: self._utility(p, best, findings) for pid, p in players.items()}
         gains = {pid: round(u[pid] - d[pid], 4) for pid in players}

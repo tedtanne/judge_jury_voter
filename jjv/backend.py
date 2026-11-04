@@ -9,15 +9,20 @@ from __future__ import annotations
 import json
 import tempfile
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Protocol
 
 
 class BackendError(RuntimeError):
-    """A model call failed. ``cost`` is what it spent before failing."""
+    """A model call failed. ``cost`` is what it spent before failing.
 
-    def __init__(self, message: str, cost: float = 0.0):
+    ``retry=False`` means asking again cannot help, such as running out of budget.
+    """
+
+    def __init__(self, message: str, cost: float = 0.0, retry: bool = True):
         super().__init__(message)
         self.cost = cost
+        self.retry = retry
 
 
 @dataclass
@@ -43,13 +48,47 @@ class Backend(Protocol):
     async def ask(self, request: Request) -> Reply: ...
 
 
+def inside(root: str, tool_input: dict) -> bool:
+    """Does this Read, Grep or Glob call stay inside ``root``?"""
+    base = Path(root).resolve()
+    for key in ("file_path", "path"):
+        if tool_input.get(key):
+            target = Path(tool_input[key]).expanduser()
+            target = (target if target.is_absolute() else base / target).resolve()
+            if not target.is_relative_to(base):
+                return False
+    for key in ("pattern", "glob"):
+        value = str(tool_input.get(key) or "")
+        if value.startswith(("/", "~")) or ".." in Path(value).parts:
+            return False
+    return True
+
+
+def repo_guard(root: str):
+    """A PreToolUse hook that denies file access outside ``root``.
+
+    A bare ``Read`` in allowed_tools approves every path on the machine, and the subject is
+    untrusted, so without this a hostile document could steer a Judge to ~/.ssh.
+    """
+    async def guard(hook_input, tool_use_id, context):
+        if inside(root, hook_input.get("tool_input") or {}):
+            return {}
+        return {"hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": f"Only files inside {root} may be read.",
+        }}
+    return guard
+
+
 class ClaudeBackend:
     """One isolated ``query()`` per request, on the Claude Agent SDK.
 
     Each Judge sees only what the orchestrator gives it. ``setting_sources=[]`` and
     ``strict_mcp_config`` keep the user's settings, memory and connected MCP servers out,
-    and ``dontAsk`` denies any tool outside the archetype's read-only allow-list. That
-    matters because the subject under review is untrusted text.
+    ``dontAsk`` denies any tool outside the archetype's read-only allow-list, and
+    ``repo_guard`` confines those tools to the repository. That matters because the subject
+    under review is untrusted text.
     """
 
     MAX_TURNS = 30
@@ -59,7 +98,8 @@ class ClaudeBackend:
 
     async def ask(self, request: Request) -> Reply:
         try:
-            from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
+            from claude_agent_sdk import (ClaudeAgentOptions, ClaudeSDKError, HookMatcher,
+                                          ResultMessage, query)
         except ImportError as e:
             raise BackendError("claude-agent-sdk is not installed; run "
                                "`pip install -r requirements-live.txt`") from e
@@ -78,18 +118,28 @@ class ClaudeBackend:
             max_budget_usd=request.max_usd,
             output_format=({"type": "json_schema", "schema": request.schema}
                            if request.schema else None),
+            hooks=({"PreToolUse": [HookMatcher(matcher="Read|Grep|Glob",
+                                               hooks=[repo_guard(request.cwd)])]}
+                   if request.tools else None),
         )
         final = None
-        async for message in query(prompt=request.prompt, options=options):
-            if isinstance(message, ResultMessage):
-                final = message
+        try:
+            async for message in query(prompt=request.prompt, options=options):
+                if isinstance(message, ResultMessage):
+                    final = message
+        except ClaudeSDKError as e:
+            # The SDK raises on an error result, and the call may have spent up to its cap.
+            spent = final.total_cost_usd if final else request.max_usd
+            raise BackendError(str(e), spent or 0.0,
+                               retry="maximum budget" not in str(e)) from e
         if final is None:
             raise BackendError("no result from the model")
 
         cost = final.total_cost_usd or 0.0
         if final.is_error:
             detail = "; ".join(final.errors or []) or final.result or ""
-            raise BackendError(f"{final.subtype}: {detail}".strip(": "), cost)
+            raise BackendError(f"{final.subtype}: {detail}".strip(": "), cost,
+                               retry=final.subtype != "error_max_budget_usd")
         if request.schema is None:
             return Reply(final.result or "", cost)
         if final.structured_output is not None:

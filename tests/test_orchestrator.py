@@ -200,14 +200,74 @@ def test_jury_failure_keeps_the_independent_verdict():
     assert run["result"]["decision"] == "approve"
 
 
+def test_an_unexpected_exception_is_one_judges_failure_not_the_runs():
+    def script(kind, aid, req):
+        if aid == "evidence_auditor":
+            raise RuntimeError("surprise")
+        return reply_for(aid)
+    run = review(Fake(script), PHYSICS)
+    assert run["status"] == "done" and run["failures"][0]["error"] == "surprise"
+
+
+def test_a_call_that_hit_its_budget_is_not_retried_and_its_spend_is_counted():
+    calls = []
+
+    def script(kind, aid, req):
+        calls.append(aid)
+        raise BackendError("Reached maximum budget", cost=0.3, retry=False)
+    run = review(Fake(script, cost=0), convene(ids=["staff_engineer"]))
+    assert len(calls) == 1 and run["cost_usd"] == 0.3 and run["status"] == "failed"
+
+
+def test_verdicts_are_saved_before_the_jury_can_lose_them(tmp_path):
+    def script(kind, aid, req):
+        if kind == "jury":
+            record = json.loads(next(tmp_path.glob("*.json")).read_text())
+            assert len(record["rounds"][0]["judge"]) == len(PHYSICS)
+            assert "proposal" in record["rounds"][0]
+        return reply_for(aid)
+    assert review(Fake(script), PHYSICS, store=str(tmp_path))["failures"] == []
+
+
+def test_a_jury_cannot_talk_a_veto_away():
+    def script(kind, aid, req):
+        if aid == "thermodynamicist" and kind == "judge":
+            return reply_for(aid, 5, findings=[finding("Heat", "blocker", "physical-correctness")])
+        return reply_for(aid, 5)
+    run = review(Fake(script), PHYSICS)
+    assert run["result"]["decision"] == "revise" and len(run["rounds"][0]["restored"]) == 1
+
+
+def test_a_store_inside_the_repo_is_refused(tmp_path):
+    with pytest.raises(ValueError, match="outside"):
+        Orchestrator(Fake(), Config(repo=str(tmp_path), store=str(tmp_path / "data")))
+
+
+def test_fallback_to_weighted_vote_is_recorded():
+    run = review(Fake(), convene("Docs Crit"))
+    assert run["rounds"][0]["aggregator"] == "weighted_vote"
+    assert any(e["type"] == "note" for e in run["events"])
+    assert review(Fake(), PHYSICS)["rounds"][0]["aggregator"] == "nash_broker"
+
+
+def test_digest_fence_is_fresh_and_settlement_sits_outside_it():
+    fake = Fake(lambda k, aid, r: reply_for(aid, findings=[finding("by-" + aid)]))
+    review(fake, PHYSICS)
+    text = fake.prompts("jury")["metering_economist"]
+    fence = re.search(r"</(digest-\w+)>", text).group(1)
+    assert text.index(f"</{fence}>") < text.index("NASH_AGENT SETTLEMENT PROPOSAL")
+    assert fence not in fake.prompts("jury")["thermodynamicist"]
+
+
 def test_timeouts_count_as_failures():
     class Slow(Fake):
         async def ask(self, request):
             await asyncio.sleep(1)
 
     run = review(Slow(), convene(ids=["staff_engineer", "product_lead"]),
-                 timeout_s=0.01, retries=0)
+                 timeout_s=0.01, retries=0, max_usd=4.0)
     assert run["status"] == "failed"
+    assert run["cost_usd"] == 4.0       # the unknown spend of both calls, at their caps
 
 
 def test_spending_stops_at_the_limit_and_each_call_gets_a_share():
@@ -215,6 +275,17 @@ def test_spending_stops_at_the_limit_and_each_call_gets_a_share():
     run = review(fake, PHYSICS, max_usd=2.0, concurrency=1)
     assert run["status"] == "failed" and run["cost_usd"] == 2.0
     assert fake.requests[0].max_usd == pytest.approx(2.0 / len(PHYSICS))
+
+
+def test_queued_calls_see_what_earlier_calls_spent():
+    class Yielding(Fake):
+        async def ask(self, request):
+            await asyncio.sleep(0)
+            return await super().ask(request)
+
+    fake = Yielding(cost=1.0)
+    review(fake, PHYSICS, max_usd=2.0, concurrency=1, retries=0)
+    assert len(fake.requests) == 2
 
 
 def test_concurrency_is_capped():
@@ -320,6 +391,25 @@ def test_generate_with_no_finished_round_fails_but_keeps_finished_work_otherwise
     assert generate(fake, DOCS, max_usd=0.5)["status"] == "failed"
     run = generate(Fake(improving([2, 3, 5]), cost=1.0), DOCS, max_usd=7.0, concurrency=1)
     assert run["status"] == "done" and run["stop_reason"].startswith("stopped early")
+
+
+def test_best_round_prefers_approved_and_fully_reviewed_rounds():
+    def script(kind, aid, req):
+        if req.draft_number == 1:                       # high score, no approval
+            return reply_for(aid, 5, "revise", [finding("polish")])
+        return reply_for(aid, 4)                        # lower score, approved
+    run = generate(Fake(script), DOCS)
+    assert run["stop_reason"] == "approved" and run["best_round"] == 2
+
+    sec = convene(ids=["security_reviewer", "technical_writer", "product_lead"])
+
+    def silent(kind, aid, req):
+        if req.draft_number == 1:
+            return reply_for(aid, 3, "revise", [finding("x")])
+        if aid == "security_reviewer":
+            raise BackendError("down")
+        return reply_for(aid, 5, "revise", [finding("y")])
+    assert generate(Fake(silent), sec, max_rounds=2)["best_round"] == 1
 
 
 def test_weighted_vote_arm_runs_without_the_broker():

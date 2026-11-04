@@ -88,6 +88,10 @@ def normalize(raw: object, archetype: dict, alias: str, *,
     if raw.get("recommendation") not in RECOMMENDATIONS:
         raise VerdictError(f"bad recommendation: {raw.get('recommendation')!r}")
 
+    for name, kind in (("scores", dict), ("findings", list), ("endorses", list)):
+        if raw.get(name) is not None and not isinstance(raw[name], kind):
+            raise VerdictError(f"{name} has the wrong type")
+
     scores = {}
     for d in archetype["rubric"]:
         value = (raw.get("scores") or {}).get(d["name"])
@@ -109,7 +113,8 @@ def normalize(raw: object, archetype: dict, alias: str, *,
             raise VerdictError(f"bad severity: {f.get('severity')!r}")
         title = str(f["title"]).strip()
         # A kept finding must keep its id, or endorsements of it would silently dangle.
-        fid = f.get("id") if f.get("id") in mine else by_title.get(title)
+        given = f.get("id")
+        fid = given if isinstance(given, str) and given in mine else by_title.get(title)
         if fid is None or any(fid == x["id"] for x in findings):
             used.add(n := max(used, default=0) + 1)
             fid = f"{alias}-{n}"
@@ -143,9 +148,42 @@ def normalize(raw: object, archetype: dict, alias: str, *,
     return verdict
 
 
-def digest(verdicts: list[dict], viewer: str, settlement_text: str | None = None) -> str:
-    """The anonymized digest one Judge reads: everyone else's verdicts, by alias only."""
-    out = ["ANONYMIZED DIGEST OF THE OTHER JUDGES", ""]
+def carry_forward(first: list[dict], final: list[dict]) -> tuple[list[dict], list[str]]:
+    """Restore what the Jury round must not lose; returns (verdicts, restored ids).
+
+    Judges revise concurrently from one digest, so prompts alone cannot protect a finding:
+    two Judges can each drop theirs and endorse the other's, and a veto blocker can be
+    talked away by text quoted from the subject. So code keeps both. A veto holds until a
+    new subject is reviewed, and a finding someone endorsed stays on the table.
+    """
+    present = {f["id"] for v in final for f in v["findings"]}
+    endorsed = {e for v in final for e in v.get("endorses", [])}
+    restored, out = [], []
+    for old, new in zip(first, final):
+        now = {f["id"]: f for f in new["findings"]}
+        for f in old["findings"]:
+            veto = f["severity"] == "blocker" and f["dimension"] in old["veto_dimensions"]
+            kept = now.get(f["id"])
+            if veto and (not kept or (kept["severity"], kept["dimension"])
+                         != (f["severity"], f["dimension"])):
+                now[f["id"]] = f
+                restored.append(f["id"])
+            elif f["id"] in endorsed and f["id"] not in present:
+                now[f["id"]] = f
+                restored.append(f["id"])
+        out.append({**new, "findings": list(now.values())})
+    return out, restored
+
+
+def digest(verdicts: list[dict], viewer: str, fence: str,
+           settlement_text: str | None = None) -> str:
+    """The anonymized digest one Judge reads: everyone else's verdicts, by alias only.
+
+    Judges' words can quote the subject, so they sit inside ``fence``, a tag they cannot
+    guess. The settlement comes from the broker, so it sits outside, where text from the
+    fenced part cannot imitate it.
+    """
+    out = ["ANONYMIZED DIGEST OF THE OTHER JUDGES", f"<{fence}>", ""]
     for v in sorted(verdicts, key=lambda v: v["alias"]):
         if v["alias"] == viewer:
             continue
@@ -155,6 +193,7 @@ def digest(verdicts: list[dict], viewer: str, settlement_text: str | None = None
             out.append(f"  - {f['id']} [{f['severity']}] {f['title']} "
                        f"({f['location']}): {f['detail']}")
         out.append("")
+    out += [f"</{fence}>", ""]
     if settlement_text:
         out += [settlement_text, ""]
     return "\n".join(out).rstrip() + "\n"
