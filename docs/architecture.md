@@ -3,7 +3,7 @@ title: Judge_Jury_Voter — Architecture & Build Plan
 description: Design for a swarm of archetype "best-in-the-business" agents that review and generate documentation, code, and designs, with a web interface. Read for the swarm topology, archetype schema, orchestration, API, and roadmap.
 status: draft
 owner: Ted
-updated: 2026-10-30
+updated: 2026-11-04
 ---
 
 # Judge_Jury_Voter
@@ -69,7 +69,7 @@ Because every veto-holder weakly prefers the settlement to blocking, accepting i
 
 ## Orchestration
 
-The orchestrator is plain application code that drives the SDK deterministically, rather than one agent deciding on its own whether to spawn helpers. This is a deliberate choice: the Agent SDK's built-in subagent delegation is powerful but nondeterministic (and, on the newest models, actively suppressed unless asked), which is the wrong property for an auditable review panel. Instead the orchestrator selects the eligible archetypes for the subject's discipline, then fans out one SDK `query()` per Judge concurrently, each with that archetype's persona as the system prompt, its rubric injected into the task, and its tool allow-list applied. Each Judge is instructed to return its verdict as JSON matching a fixed schema; a lightweight in-process tool (`submit_verdict`) gives the model a typed channel to return that structure reliably instead of parsing prose.
+The orchestrator is plain application code that drives the SDK deterministically, rather than one agent deciding on its own whether to spawn helpers. This is a deliberate choice: the Agent SDK's built-in subagent delegation is powerful but nondeterministic (and, on the newest models, actively suppressed unless asked), which is the wrong property for an auditable review panel. Instead the orchestrator selects the eligible archetypes for the subject's discipline, then fans out one SDK `query()` per Judge concurrently, each with that archetype's persona as the system prompt, its rubric injected into the task, and its tool allow-list applied. Each Judge is instructed to return its verdict as JSON matching a fixed schema; the SDK's structured output (`output_format`) gives the model a typed channel to return that structure reliably instead of parsing prose.
 
 A run is a small state machine — `SELECT → JUDGE → (JURY) → VOTE → DONE` for review, with a `GENERATE` state prepended and a loop back from `VOTE` to `GENERATE` for authoring. Each phase writes its outputs (verdicts, deliberations, tally) to storage and emits streaming events, so the UI and the audit log are the same source of truth. Concurrency, subagent depth, and a per-run dollar budget are capped through the SDK's limits so a runaway panel can't spend unboundedly.
 
@@ -98,18 +98,18 @@ Several controls keep the swarm useful and bounded. **Budgets**: every run carri
 - **The full archetype registry.** 46 archetypes (6 defaults, 31 legends, 8 domain roles, Nash_Agent) and 19 presets, with every preset member defined. The roster was ported in October 2026 from the Deliberation Console prototype, which had held it as display-name-keyed data with unscoped veto flags. `jjv/registry.py` provides `get`, `panel`, `validate` and the generated catalog.
 - **Nash_Agent v2 and its bargaining kernel** (`jjv/nash.py`). Version 2 adds coalition, computability and stopping rules from the mechanism-design papers.
 - **The broker evaluation** (`jjv/eval_broker.py`). In an offline simulation of 300 synthetic panels, a single overconfident Judge displaced 3% of the broker's chosen fixes against 19% under weighted voting, and fewer Judges were shut out (0.08 vs 0.13 on average). The cost was 96% vs 99% of the maximum total value addressed. It also has a live-comparison hook for real runs.
-- **33 passing tests**, no API key needed, run by CI on Python 3.10–3.12 together with the evaluation.
+- **The orchestrator** (`jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py`). It runs review and generate modes on the Claude Agent SDK, one isolated `query()` per Judge, with Nash_Agent in the Jury phase, `endorses` and `change_aversion` in the verdict, reputation saved across runs, and `live_run_fn` connecting `run_live_comparison` to the generate loop.
+- **The Voter** (`jjv/voter.py`) and the verdict contract (`jjv/verdicts.py`). The Voter is a deterministic tally; no synthesis agent yet.
+- **79 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
 
-**In the original scaffold, not yet in the repository.** The `judge_jury_voter.zip` scaffold delivered earlier implemented:
-- the deterministic orchestrator on the Claude Agent SDK (one `query()` per Judge, concurrent) and the `submit_verdict` typed tool;
-- the Judge → Jury → Voter path and the generation loop;
-- the unit-tested Voter (6 tests);
-- JSON-backed storage, the FastAPI backend with SSE, the CLI, and the single-file web UI.
+**Orchestrator decisions worth knowing:**
+- Nash_Agent is not a player. It holds no stake, so its own findings reach the Voter but are not bargained over, and they never enter a generate-loop fix list.
+- More than half the panel must report, or the run fails with no decision. A veto-holder that never reported blocks approval.
+- Judges get read-only tools only when a run names a repository. User settings, memory and MCP servers are kept out of every Judge.
+- The spending limit is checked between calls, so a run can slightly exceed it.
+- Near-duplicate findings are not merged by code. Judges are told to endorse rather than repeat in the Jury round, so skipping the Jury leaves duplicates in the list.
 
-Those modules land next; when they do, they should import archetypes and presets from `jjv.registry` instead of defining their own. The remaining integration steps:
-- wire Nash_Agent into the orchestrator's Jury phase;
-- add the `endorses` and `change_aversion` verdict fields;
-- connect `run_live_comparison` to the generate loop.
+**Not yet built:** the FastAPI backend with SSE and the web UI. An earlier version of this document said a `judge_jury_voter.zip` scaffold held these modules; the zip on hand holds only this repository, so the orchestrator and Voter were written new in November 2026.
 
 An interactive prototype (the Deliberation Console, published as an Artifact) demonstrates the interface and two deliberation rooms.
 

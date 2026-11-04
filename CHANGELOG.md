@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-04
+
+### Added
+- **Orchestrator** (`jjv/orchestrator.py`): review and generate runs, retries, quorum, per-run spending limit, saved run records, reputation across runs, and `live_run_fn` for `run_live_comparison`.
+- **Claude backend** (`jjv/backend.py`) and **CLI** (`jjv/cli.py`). The SDK is in `requirements-live.txt`; tests and CI do not need it.
+- **Voter** (`jjv/voter.py`) and **verdict contract** (`jjv/verdicts.py`).
+- **Tests**: 46 new, bringing the total to 79.
+
+### Fixed
+- Bare `pytest` failed to import `jjv`; `pytest.ini` now sets the path.
+- `docs/architecture.md` said the scaffold zip held these modules. It does not.
+
 ## 2026-10-30
 
 ### Added
