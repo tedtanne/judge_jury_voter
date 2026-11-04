@@ -140,8 +140,7 @@ NASH_RUBRIC = [
     },
 ]
 
-# Mirrors the archetype record in architecture.md. If the scaffold's Archetype is a
-# dataclass, construct it with Archetype(**NASH_AGENT); unknown keys can be dropped.
+# Mirrors the archetype record in architecture.md.
 NASH_AGENT = {
     "id": "nash_agent",
     "name": "Nash_Agent",

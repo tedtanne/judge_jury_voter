@@ -96,19 +96,15 @@ Seeds 1–3 agree. The broker is about 5× more resistant to a Judge who inflate
 
 **Limits.** Synthetic panels test the selection rule, not LLM verdict quality, and payoffs come from severity points rather than elicitation. `run_live_comparison` is the hook for the real test: rounds to threshold and blind final scores on live subjects.
 
-## Wiring it into the swarm
+## How it is wired into the swarm
 
-1. **Register the archetype.** Add `NASH_AGENT` to the registry, via `Archetype(**NASH_AGENT)` or a studio import. It is `library=True`, so it joins only through a panel.
-2. **Add the presets** from `NASH_PRESETS` to `PRESET_PANELS` in `jjv/legends.py`:
-   - *The Nash Table*: Nash, Security, Simplifier, Staff Engineer, Product Lead.
-   - *Treaty Room*, for partner and alliance deals: Nash, Attestation Architect, Systems Integrator, Mission Assurance Officer, Product Lead.
-3. **Update the orchestrator.** In the Jury phase, when a convened archetype has `role == "broker"`:
-   - Build verdict dicts that carry `archetype_id`, `weight`, `veto`, `veto_dimensions`, `findings`, `recommendation`, and `endorses`.
-   - Call `NashBroker(budget=…).solve(verdicts)`.
-   - Append `settlement.to_digest()` to the anonymized digest each Judge sees before it revises.
-   - Store the Settlement with the run for audit.
-4. **Add two optional verdict fields** to the schema: `endorses` (finding ids the Judge supports after deliberation) and `change_aversion` (how much the Judge dislikes churn).
-5. **The Voter needs no change.** The broker proposes priorities, and the Voter still aggregates the final verdicts. Its veto policy stays authoritative.
+- **Registry.** `NASH_AGENT` and its presets are in `jjv/registry.py`. It is `library=True`, so it joins only through a panel.
+- **Jury phase.** When a panel includes an archetype with `role == "broker"`, the orchestrator solves the settlement and shows it to each Judge after the fenced digest. It solves under anonymous aliases, so the printed math names no archetype.
+- **Vote phase.** The broker solves again on the final verdicts to pick the fix list. Both settlements are stored with the run.
+- **Verdict fields.** `endorses` and `change_aversion` are collected in the Jury round. Without a Jury, `change_aversion` falls back to 0.25.
+- **Not a player.** Nash_Agent's own findings reach the Voter but are not bargained over.
+- **The Voter is separate.** The broker sets priorities. The Voter still makes the decision, and its veto policy stays authoritative.
+- **No broker on the panel.** The run uses weighted vote, and says so in the round's `aggregator` field.
 
 ## Decisions to confirm
 
@@ -116,4 +112,10 @@ Seeds 1–3 agree. The broker is about 5× more resistant to a Judge who inflate
 
 - **An unvetoed blocker can be deferred.** This is the purist position: without a credible threat behind it, a blocker is cheap talk. If some disciplines should never defer a blocker, give that archetype a veto on the relevant dimension; don't soften the kernel.
 - **Default budget is 8 cost units per revision**, about four majors. Tune it per panel.
-- **Reputation is on only when `history` is passed.** Persisting cheap-talk counts across runs requires one new table.
+- **Reputation needs a store.** The orchestrator saves cheap-talk counts to `reputation.json` beside the run records. Reputation changes later settlements, and a run record does not yet snapshot the history it used.
+
+## Next steps
+
+Broker work still open, from [the full list](architecture.md#next-steps):
+- Make the weighted-vote baseline fair on live panels, then run the live comparison. Offline results are simulations only.
+- Decide whether veto-holders may keep choosing their own finding's dimension, and whether `change_aversion` should stay self-reported.

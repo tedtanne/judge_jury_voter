@@ -49,6 +49,14 @@ python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 
 **Status.** This repository holds the full archetype registry (46 archetypes, 19 presets, every preset member defined), the negotiation layer and its evaluation, the orchestrator, the Voter, and a CLI. Still to come: the FastAPI backend and web UI, and the live broker comparison on real subjects.
 
+**Next steps**, in recommended order (details in [`docs/architecture.md`](docs/architecture.md#next-steps)):
+1. Finish a full-model review including the Jury round, with `--max-usd 10`.
+2. Merge the `orchestrator` branch through a pull request, so CI runs on Python 3.10–3.12.
+3. Show Judges the brief in generate mode, and carry findings across rounds.
+4. Make the weighted-vote baseline fair on live panels, then run the live broker comparison.
+5. Decide the open incentive questions in the Voter and the broker.
+6. Build the web interface.
+
 Design rationale is in [`docs/architecture.md`](docs/architecture.md). The broker spec is in [`docs/nash-agent.md`](docs/nash-agent.md), the domain archetypes are in [`docs/domain-agents.md`](docs/domain-agents.md), and every archetype and preset is listed in [`docs/archetypes.md`](docs/archetypes.md).
 
 **About the archetypes.** "Legend" archetypes are trait profiles: lenses *inspired by* how notable people are publicly known to work. They are not impersonations. They never speak as those people, and no endorsement or affiliation is implied. Role archetypes, such as The Cryptographer and Nash_Agent, are modeled on a discipline, not on any person.

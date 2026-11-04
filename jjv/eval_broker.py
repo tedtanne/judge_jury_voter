@@ -21,11 +21,11 @@ aggregators on each under a fixed revision budget. It measures:
   Nash product, not the sum, so it is *expected* to trail voting slightly here; the
   metric is reported so the trade is visible, not hidden.
 
-**Live comparison (needs the scaffold and an API key).** ``run_live_comparison`` takes
+**Live comparison (spends money on real model calls).** ``run_live_comparison`` takes
 real subjects and a ``run_fn(subject, aggregator) -> {"rounds": int, "score": float}``
 that drives the orchestrator's generate loop with either aggregator, and reports rounds
-to reach the quality threshold and final scores. Wire ``run_fn`` to the orchestrator once
-Nash_Agent is in the Jury phase (roadmap Phase 5b).
+to reach the quality threshold and final scores. ``jjv.orchestrator.live_run_fn`` builds
+that ``run_fn`` (roadmap Phase 5b).
 
 CLI::
 

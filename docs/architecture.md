@@ -114,15 +114,31 @@ Several controls keep the swarm useful and bounded. **Budgets**: every run carri
 
 An interactive prototype (the Deliberation Console, published as an Artifact) demonstrates the interface and two deliberation rooms.
 
-What remains to reach production is the Phase 6 hardening below: a real queue, Postgres, auth, model-tier tuning, per-run budget wiring, and an evaluation set. The roster and rubrics are expected to keep evolving as they meet real subjects.
+What remains to reach production is the Phase 6 hardening below: a real queue, Postgres, auth, model-tier tuning, and an evaluation set. The roster and rubrics are expected to keep evolving as they meet real subjects.
+
+## Next steps
+
+In recommended order, as of 2026-11-04. Each step makes the next one more trustworthy.
+
+1. **Finish a full review with the Jury round.** The first full-model review ran out of budget before deliberation: five Judges with repo access cost $3.33 of a $5 limit, leaving too little for the Jury. Rerun it on this branch with `--max-usd 10`. Spending is also split per phase, not planned, so the Judge round should leave a reserve for the Jury.
+2. **Merge `orchestrator` into `main` through a pull request.** CI runs only on `main` and on pull requests, so the Python 3.10 and 3.11 runs have not happened for this code yet.
+3. **Show Judges the brief in generate mode.** Judges and the blind panel see only the draft, so a polished draft that misses the brief can still score well.
+4. **Carry findings across generate rounds.** Deferred findings are "on record" only in the run file. The next round starts fresh, and nothing checks that a chosen fix was made.
+5. **Make the weighted-vote baseline fair on live panels.** Live finding ids are unique per Judge, so votes never add up across Judges as they do in the simulation. Fix this before step 6 or the comparison is not like for like. Matching equivalent findings is the hard part.
+6. **Run the live comparison (Phase 5b).** `live_run_fn` is ready and tested but has no CLI command yet, and it has never run on real subjects. It is the test that decides whether the broker earns its roughly 5% cost in total value addressed.
+7. **Decide the open incentive questions.** The panel raised three, none resolved:
+   - One low-scoring Judge can block approval without holding a veto, because the consensus is a plain weighted mean.
+   - A veto-holder chooses its own finding's dimension, so it can label any complaint as its veto area.
+   - `change_aversion` is self-reported, and a Judge sees the proposal before setting it.
+8. **Build the web interface (Phase 3).** Do this after the steps above, so the interface sits on a loop whose results can be trusted.
 
 ## Build roadmap
 
-The phases are ordered so each produces something usable and de-risks the next. Phases 1–5 were substantially prototyped in the scaffold; the registry half of Phase 4 is now in the repository, and Phase 6 is the remaining work.
+The phases are ordered so each produces something usable and de-risks the next. Phases 0–2 and 5 are in the repository, along with the wiring for 5b and the registry half of Phase 4. The live measurement in 5b, Phase 3, the studio half of Phase 4, and Phases 5c and 6 remain. See [Next steps](#next-steps) for the recommended order.
 
 **Phase 0 — Design (this document).** Lock the archetype schema, the verdict JSON schema, and the run state machine. These three contracts are what everything else depends on.
 
-**Phase 1 — Review pipeline, headless.** Build the orchestrator, the code-defined default archetypes, the `submit_verdict` tool, and the Judge → Voter path (skip the Jury round first). Run it from a CLI against a pasted diff and print the decision. This proves the consensus mechanism end to end with no UI.
+**Phase 1 — Review pipeline, headless.** Build the orchestrator, the code-defined default archetypes, structured verdict output, and the Judge → Voter path (skip the Jury round first). Run it from a CLI against a pasted diff and print the decision. This proves the consensus mechanism end to end with no UI.
 
 **Phase 2 — Jury round + weighting.** Add the deliberation round and the Voter's weighting and veto policy. Measure whether deliberation actually changes verdicts on real subjects before investing further.
 
