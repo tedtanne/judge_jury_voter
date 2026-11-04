@@ -11,7 +11,7 @@ def raw(archetype, score=4, rec="approve", findings=()):
 
 
 def finding(sev="major", dim="x", **kw):
-    return {"title": "t", "severity": sev, "dimension": dim, "location": "l", "detail": "d", **kw}
+    return {"title": "t", "severity": sev, "dimension": dim, "location": "l", "detail": "d"} | kw
 
 
 def verdict(id, alias="A", **kw):
@@ -50,14 +50,22 @@ def test_ids_come_from_the_orchestrator_not_the_model():
 def test_revision_keeps_own_ids_and_cannot_claim_anothers():
     a = get("staff_engineer")
     first = normalize(raw(a, findings=[finding(), finding()]), a, "A")
-    revised = normalize(raw(a, findings=[finding(id="A-2"), finding(id="B-1")]), a, "A",
-                        previous=first)
+    revised = normalize(raw(a, findings=[finding(id="A-2"), finding(id="B-1", title="u")]), a,
+                        "A", previous=first)
     assert [f["id"] for f in revised["findings"]] == ["A-2", "A-3"]
+
+
+def test_a_kept_finding_keeps_its_id_even_when_the_model_omits_it():
+    a = get("staff_engineer")
+    first = normalize(raw(a, findings=[finding(title="kept")]), a, "A")
+    revised = normalize(raw(a, findings=[finding(title="kept"), finding(title="new")]), a, "A",
+                        previous=first)
+    assert [f["id"] for f in revised["findings"]] == ["A-1", "A-2"]
 
 
 def test_endorsements_must_exist_and_belong_to_someone_else():
     a = get("staff_engineer")
-    r = raw(a, findings=[finding()]) | {"endorses": ["B-1", "A-1", "Z-9"]}
+    r = raw(a, findings=[finding()]) | {"endorses": ["b-1", "A-1", "Z-9"]}
     v = normalize(r, a, "A", known_ids={"A-1", "B-1"})
     assert v["endorses"] == ["B-1"]
 

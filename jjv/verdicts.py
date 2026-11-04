@@ -82,7 +82,9 @@ def normalize(raw: object, archetype: dict, alias: str, *,
             raise VerdictError(f"score for {d['name']!r} out of range: {value}")
         scores[d["name"]] = value
 
-    mine = {f["id"] for f in (previous or {}).get("findings", [])}
+    earlier = (previous or {}).get("findings", [])
+    mine = {f["id"] for f in earlier}
+    by_title = {f["title"]: f["id"] for f in earlier}
     used = {int(i.rsplit("-", 1)[1]) for i in mine}
     findings = []
     for f in raw.get("findings") or []:
@@ -90,13 +92,15 @@ def normalize(raw: object, archetype: dict, alias: str, *,
             raise VerdictError("finding without a title")
         if f.get("severity") not in SEVERITIES:
             raise VerdictError(f"bad severity: {f.get('severity')!r}")
-        fid = f.get("id")
-        if fid not in mine or any(fid == x["id"] for x in findings):
+        title = str(f["title"]).strip()
+        # A kept finding must keep its id, or endorsements of it would silently dangle.
+        fid = f.get("id") if f.get("id") in mine else by_title.get(title)
+        if fid is None or any(fid == x["id"] for x in findings):
             used.add(n := max(used, default=0) + 1)
             fid = f"{alias}-{n}"
         findings.append({
             "id": fid,
-            "title": str(f["title"]).strip(),
+            "title": title,
             "severity": f["severity"],
             "dimension": f.get("dimension"),
             "location": f.get("location", ""),
@@ -114,7 +118,7 @@ def normalize(raw: object, archetype: dict, alias: str, *,
         "rationale": str(raw.get("rationale", "")),
         "recommendation": raw["recommendation"],
         "findings": findings,
-        "endorses": sorted({e for e in raw.get("endorses") or []
+        "endorses": sorted({e for e in (str(x).upper() for x in raw.get("endorses") or [])
                             if e in known_ids and e not in own}),
         "changed_mind": str(raw.get("changed_mind", "")),
     }
