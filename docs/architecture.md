@@ -3,7 +3,7 @@ title: Judge_Jury_Voter — Architecture & Build Plan
 description: Design for a swarm of archetype "best-in-the-business" agents that review and generate documentation, code, and designs, with a web interface. Read for the swarm topology, archetype schema, orchestration, API, and roadmap.
 status: draft
 owner: Ted
-updated: 2026-10-30
+updated: 2026-11-04
 ---
 
 # Judge_Jury_Voter
@@ -57,11 +57,11 @@ Nash_Agent is a role archetype built on strict game-theoretic negotiation: Nash 
 **As a Broker**, it runs a deterministic bargaining kernel (`NashBroker`) during the Jury round. The Judges are the players, and the thing being negotiated is which findings the next revision addresses under a fixed revision budget. The kernel works in four steps:
 
 1. **Only credible threats count.** A blocker raised by a Judge that holds a veto for that dimension is forced into every outcome. A blocker or "reject" from a Judge without that veto is recorded as cheap talk and not priced.
-2. **Find the frontier.** Among outcomes that fit the budget and leave every veto-holder at least as well off as blocking, it keeps only those where no Judge can gain without another losing.
+2. **Find the frontier.** Among outcomes that fit the budget and leave every veto-holder at least as well off *in its own veto area* as blocking, it keeps only those where no Judge can gain without another losing.
 3. **Split by the weighted Nash product.** It picks the outcome that maximizes the weighted product of each Judge's gain over the disagreement point, and breaks ties with a published rule.
 4. **Publish the math.** The settlement goes into the anonymized Jury digest: what is fixed now, what is deferred, whose threats were cheap talk, and each Judge's net gain.
 
-Because every veto-holder weakly prefers the settlement to blocking, accepting it is a Nash equilibrium of the ratification step. When `history` is supplied, past cheap talk lowers a Judge's weight, down to a floor of half, so reputation carries across runs.
+A veto reaches only its holder's area, and each holder weakly prefers the settlement to blocking there, so accepting it is a Nash equilibrium of the ratification step. When `history` is supplied, past cheap talk lowers a Judge's weight, down to a floor of half, so reputation carries across runs.
 
 **What it may not do.** Nash_Agent bargains over priorities, never over facts. It cannot add, drop, reword, or re-score another Judge's findings. It holds no veto and no stake, because a broker with a threat point is just another player. Its own scores are sincere. The Voter is unchanged: it still aggregates the final verdicts, and its veto policy stays authoritative.
 
@@ -69,7 +69,7 @@ Because every veto-holder weakly prefers the settlement to blocking, accepting i
 
 ## Orchestration
 
-The orchestrator is plain application code that drives the SDK deterministically, rather than one agent deciding on its own whether to spawn helpers. This is a deliberate choice: the Agent SDK's built-in subagent delegation is powerful but nondeterministic (and, on the newest models, actively suppressed unless asked), which is the wrong property for an auditable review panel. Instead the orchestrator selects the eligible archetypes for the subject's discipline, then fans out one SDK `query()` per Judge concurrently, each with that archetype's persona as the system prompt, its rubric injected into the task, and its tool allow-list applied. Each Judge is instructed to return its verdict as JSON matching a fixed schema; a lightweight in-process tool (`submit_verdict`) gives the model a typed channel to return that structure reliably instead of parsing prose.
+The orchestrator is plain application code that drives the SDK deterministically, rather than one agent deciding on its own whether to spawn helpers. This is a deliberate choice: the Agent SDK's built-in subagent delegation is powerful but nondeterministic (and, on the newest models, actively suppressed unless asked), which is the wrong property for an auditable review panel. Instead the orchestrator selects the eligible archetypes for the subject's discipline, then fans out one SDK `query()` per Judge concurrently, each with that archetype's persona as the system prompt, its rubric injected into the task, and its tool allow-list applied. Each Judge is instructed to return its verdict as JSON matching a fixed schema; the SDK's structured output (`output_format`) gives the model a typed channel to return that structure reliably instead of parsing prose.
 
 A run is a small state machine — `SELECT → JUDGE → (JURY) → VOTE → DONE` for review, with a `GENERATE` state prepended and a loop back from `VOTE` to `GENERATE` for authoring. Each phase writes its outputs (verdicts, deliberations, tally) to storage and emits streaming events, so the UI and the audit log are the same source of truth. Concurrency, subagent depth, and a per-run dollar budget are capped through the SDK's limits so a runaway panel can't spend unboundedly.
 
@@ -97,31 +97,51 @@ Several controls keep the swarm useful and bounded. **Budgets**: every run carri
 
 - **The full archetype registry.** 46 archetypes (6 defaults, 31 legends, 8 domain roles, Nash_Agent) and 19 presets, with every preset member defined. The roster was ported in October 2026 from the Deliberation Console prototype, which had held it as display-name-keyed data with unscoped veto flags. `jjv/registry.py` provides `get`, `panel`, `validate` and the generated catalog.
 - **Nash_Agent v2 and its bargaining kernel** (`jjv/nash.py`). Version 2 adds coalition, computability and stopping rules from the mechanism-design papers.
-- **The broker evaluation** (`jjv/eval_broker.py`). In an offline simulation of 300 synthetic panels, a single overconfident Judge displaced 3% of the broker's chosen fixes against 19% under weighted voting, and fewer Judges were shut out (0.08 vs 0.13 on average). The cost was 96% vs 99% of the maximum total value addressed. It also has a live-comparison hook for real runs.
-- **33 passing tests**, no API key needed, run by CI on Python 3.10–3.12 together with the evaluation.
+- **The broker evaluation** (`jjv/eval_broker.py`). In an offline simulation of 300 synthetic panels, a single overconfident Judge displaced 4% of the broker's chosen fixes against 19% under weighted voting, and fewer Judges were shut out (0.06 vs 0.13 on average). The cost was 94% vs 99% of the maximum total value addressed. It also has a live-comparison hook for real runs.
+- **The orchestrator** (`jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py`). It runs review and generate modes on the Claude Agent SDK, one isolated `query()` per Judge, with Nash_Agent in the Jury phase, `endorses` and `change_aversion` in the verdict, reputation saved across runs, and `live_run_fn` connecting `run_live_comparison` to the generate loop.
+- **The Voter** (`jjv/voter.py`) and the verdict contract (`jjv/verdicts.py`). The Voter is a deterministic tally; no synthesis agent yet.
+- **117 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
 
-**In the original scaffold, not yet in the repository.** The `judge_jury_voter.zip` scaffold delivered earlier implemented:
-- the deterministic orchestrator on the Claude Agent SDK (one `query()` per Judge, concurrent) and the `submit_verdict` typed tool;
-- the Judge → Jury → Voter path and the generation loop;
-- the unit-tested Voter (6 tests);
-- JSON-backed storage, the FastAPI backend with SSE, the CLI, and the single-file web UI.
+**Orchestrator decisions worth knowing:**
+- Nash_Agent is not a player. It holds no stake, so its own findings reach the Voter but are not bargained over, and they never enter a generate-loop fix list.
+- More than half the panel must report, or the run fails with no decision. A veto-holder that never reported blocks approval.
+- Judges get read-only tools only when a run names a repository, and a `PreToolUse` hook confines those tools to it. User settings, memory and MCP servers are kept out of every Judge.
+- A Jury round cannot remove a veto blocker or an endorsed finding. `carry_forward` restores them in code and records it in the round's `restored` list, because Judges revise concurrently and read text quoted from the subject.
+- The spending limit is checked between calls, so a run can slightly exceed it. A timed-out call is charged its full cap, because its real spend is unknown.
+- Near-duplicate findings are not merged by code. Judges are told to endorse rather than repeat in the Jury round, so skipping the Jury leaves duplicates in the list.
 
-Those modules land next; when they do, they should import archetypes and presets from `jjv.registry` instead of defining their own. The remaining integration steps:
-- wire Nash_Agent into the orchestrator's Jury phase;
-- add the `endorses` and `change_aversion` verdict fields;
-- connect `run_live_comparison` to the generate loop.
+**Not yet built:** the FastAPI backend with SSE and the web UI. An earlier version of this document said a `judge_jury_voter.zip` scaffold held these modules; the zip on hand holds only this repository, so the orchestrator and Voter were written new in November 2026.
 
 An interactive prototype (the Deliberation Console, published as an Artifact) demonstrates the interface and two deliberation rooms.
 
-What remains to reach production is the Phase 6 hardening below: a real queue, Postgres, auth, model-tier tuning, per-run budget wiring, and an evaluation set. The roster and rubrics are expected to keep evolving as they meet real subjects.
+What remains to reach production is the Phase 6 hardening below: a real queue, Postgres, auth, model-tier tuning, and an evaluation set. The roster and rubrics are expected to keep evolving as they meet real subjects.
+
+## Next steps
+
+In recommended order, as of 2026-11-04. Each step makes the next one more trustworthy.
+
+1. **Merge `orchestrator` into `main` through a pull request.** CI runs only on `main` and on pull requests, so this is what tests the code on Python 3.10 and 3.11.
+2. **Finish a full review with the Jury round.** The first full-model review ran out of budget before deliberation: five Judges with repo access cost $3.33 of a $5 limit, leaving too little for the Jury. Rerun it with `--max-usd 10`. Spending is also split per phase, not planned, so the Judge round should leave a reserve for the Jury.
+3. **Show Judges the brief in generate mode.** Judges and the blind panel see only the draft, so a polished draft that misses the brief can still score well.
+4. **Carry findings across generate rounds.** Deferred findings are "on record" only in the run file. The next round starts fresh, and nothing checks that a chosen fix was made.
+5. **Make the weighted-vote baseline fair on live panels.** Live finding ids are unique per Judge, so votes never add up across Judges as they do in the simulation. Fix this before step 6 or the comparison is not like for like. Matching equivalent findings is the hard part.
+6. **Run the live comparison (Phase 5b).** `live_run_fn` is ready and tested but has no CLI command yet, and it has never run on real subjects. It is the test that decides whether the broker earns its roughly 5% cost in total value addressed.
+7. **Decide the open incentive questions.** The panel raised three, none resolved:
+   - One low-scoring Judge can block approval without holding a veto, because the consensus is a plain weighted mean.
+   - A veto-holder chooses its own finding's dimension, so it can label any complaint as its veto area.
+   - `change_aversion` is self-reported, and a Judge sees the proposal before setting it.
+8. **Add an MCP server.** It would let Claude Code, Claude Desktop and other MCP clients call the panels directly, as a usable interface well before the web UI. Build it after the merge in step 1, in two stages:
+   - **Free tools first:** `list_panels`, `list_archetypes`, `get_run`, and `settle`, which re-runs the Voter and Nash on a saved run at a different budget with no model calls.
+   - **Paid tools second:** `review` and `generate`, off unless enabled. An AI would be choosing when to spend, so they need a low default limit and a hard maximum the caller cannot raise. Runs take minutes, so they should return a run id at once and report through `get_run`. Repositories must come from a configured allow-list, not from the caller.
+9. **Build the web interface (Phase 3).** Do this after the steps above, so the interface sits on a loop whose results can be trusted.
 
 ## Build roadmap
 
-The phases are ordered so each produces something usable and de-risks the next. Phases 1–5 were substantially prototyped in the scaffold; the registry half of Phase 4 is now in the repository, and Phase 6 is the remaining work.
+The phases are ordered so each produces something usable and de-risks the next. Phases 0–2 and 5 are in the repository, along with the wiring for 5b and the registry half of Phase 4. The live measurement in 5b, Phase 3, the studio half of Phase 4, and Phases 5c and 6 remain. See [Next steps](#next-steps) for the recommended order.
 
 **Phase 0 — Design (this document).** Lock the archetype schema, the verdict JSON schema, and the run state machine. These three contracts are what everything else depends on.
 
-**Phase 1 — Review pipeline, headless.** Build the orchestrator, the code-defined default archetypes, the `submit_verdict` tool, and the Judge → Voter path (skip the Jury round first). Run it from a CLI against a pasted diff and print the decision. This proves the consensus mechanism end to end with no UI.
+**Phase 1 — Review pipeline, headless.** Build the orchestrator, the code-defined default archetypes, structured verdict output, and the Judge → Voter path (skip the Jury round first). Run it from a CLI against a pasted diff and print the decision. This proves the consensus mechanism end to end with no UI.
 
 **Phase 2 — Jury round + weighting.** Add the deliberation round and the Voter's weighting and veto policy. Measure whether deliberation actually changes verdicts on real subjects before investing further.
 

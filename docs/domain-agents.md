@@ -104,3 +104,7 @@ Every member id resolves in `jjv/registry.py`; the base and legend ids (`securit
   - a saved dermavir.com page
   - a Python-libraries listicle
 - **Personal and business records:** consulting agreements and SOWs, the LLC operating agreement, an ACH authorization, AR aging reports, a release form, and a résumé. These are searchable by any agent given library access. Consider moving them out before Phase 5c gives jurors a search tool.
+
+## Next steps
+
+Every domain archetype now runs live through the orchestrator, for example `python -m jjv.cli review design.md --panel "Physics of Compute"`. Only Physics of Compute and The Nash Table have run so far. Phase 5c, which lets archetypes with `grounded_in` search the library and cite their papers, is still to come. The recommended order for all open work is in [`architecture.md`](architecture.md#next-steps).

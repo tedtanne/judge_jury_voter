@@ -9,19 +9,28 @@ A swarm of AI review agents. Each agent is an *archetype* of a best-in-the-busin
 - **The Voter** aggregates the final verdicts into a decision and a ranked action list.
 - **A Generator loop** reuses the same panel to draft, critique and revise from a brief.
 
-The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs during the Jury round. It treats the Judges as players bargaining over which findings the next revision fixes, under a fixed revision budget. It settles that bargaining with the Nash bargaining solution, not a vote. A Judge's threat counts only when it holds a veto for that area. An offline evaluation finds this makes the panel roughly **5–7× harder for one overconfident Judge to steer** than weighted voting (see [Evaluation](#evaluation)).
+The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs during the Jury round. It treats the Judges as players bargaining over which findings the next revision fixes, under a fixed revision budget. It settles that bargaining with the Nash bargaining solution, not a vote. A Judge's threat counts only when it holds a veto for that area. An offline evaluation finds this makes the panel roughly **5× harder for one overconfident Judge to steer** than weighted voting (see [Evaluation](#evaluation)).
 
 ## Quick start
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest -q                                          # 33 unit tests, no API key needed
+pytest -q                                          # 117 unit tests, no API key needed
 python -m jjv.registry > docs/archetypes.md        # regenerate the archetype catalog
 python -m jjv.eval_broker --trials 300 --seed 7    # Nash broker vs weighted vote
 ```
 
-Everything in this repository runs on the Python standard library alone. `requirements.txt` only adds the test tooling.
+Everything except live runs uses the Python standard library alone. `requirements.txt` only adds the test tooling.
+
+To run a real panel, install the Claude Agent SDK. Live runs call Claude and spend money, up to `--max-usd` (default $5, a soft limit checked between calls). Run records go to `~/.jjv/runs`, outside any repo, because they name who is behind each anonymous Judge and Judges can read the repo they review. A store inside `--repo` is refused.
+
+```bash
+pip install -r requirements-live.txt
+python -m jjv.cli review design.md --panel "Physics of Compute"
+git diff | python -m jjv.cli review - --discipline code --repo .
+python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
+```
 
 ## What's in this repository
 
@@ -32,14 +41,22 @@ Everything in this repository runs on the Python standard library alone. `requir
 | Domain archetypes | Eight role archetypes with rubrics, veto dimensions, presets, and the papers their standards come from | `jjv/domain_roles.py` |
 | Nash_Agent | Archetype record, plus the deterministic bargaining kernel that brokers the Jury round | `jjv/nash.py` |
 | Registry | One lookup for all 46 archetypes and 19 presets, the veto-dimension vocabulary, `validate()`, and the generated catalog | `jjv/registry.py`, `docs/archetypes.md` |
+| Orchestrator | Runs SELECT, JUDGE, JURY, VOTE and the generate loop in fixed order, with retries, quorum, spending limit, saved run records and reputation | `jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py` |
+| Voter | Deterministic tally: consensus score, decision by veto policy, ranked findings, dissents | `jjv/voter.py`, `jjv/verdicts.py` |
 | Evaluation | Nash broker vs weighted voting: offline simulation plus a live-comparison hook | `jjv/eval_broker.py` |
-| Tests and CI | 33 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
+| Tests and CI | 117 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
 | Design docs | The full swarm architecture and roadmap, the broker spec, the domain-agent library map, and the catalog | `docs/` |
 
-**Status.** This repository holds the full archetype registry (46 archetypes, 19 presets, every preset member defined), the negotiation layer, and its evaluation. Still to land from the scaffold described in [`docs/architecture.md`](docs/architecture.md):
-- the orchestrator on the Claude Agent SDK;
-- the Voter;
-- the FastAPI backend and web UI.
+**Status.** This repository holds the full archetype registry (46 archetypes, 19 presets, every preset member defined), the negotiation layer and its evaluation, the orchestrator, the Voter, and a CLI. Still to come: the FastAPI backend and web UI, and the live broker comparison on real subjects.
+
+**Next steps**, in recommended order (details in [`docs/architecture.md`](docs/architecture.md#next-steps)):
+1. Merge the `orchestrator` branch through a pull request, so CI runs on Python 3.10–3.12.
+2. Finish a full-model review including the Jury round, with `--max-usd 10`.
+3. Show Judges the brief in generate mode, and carry findings across rounds.
+4. Make the weighted-vote baseline fair on live panels, then run the live broker comparison.
+5. Decide the open incentive questions in the Voter and the broker.
+6. Add an MCP server, so MCP clients can call the panels: free read-only tools first, then capped `review` and `generate`.
+7. Build the web interface.
 
 Design rationale is in [`docs/architecture.md`](docs/architecture.md). The broker spec is in [`docs/nash-agent.md`](docs/nash-agent.md), the domain archetypes are in [`docs/domain-agents.md`](docs/domain-agents.md), and every archetype and preset is listed in [`docs/archetypes.md`](docs/archetypes.md).
 
@@ -48,11 +65,11 @@ Design rationale is in [`docs/architecture.md`](docs/architecture.md). The broke
 ## The Nash_Agent broker in brief
 
 1. **Disagreement point.** A blocker raised by a Judge holding a veto for that area is a *credible* threat. It is forced into every outcome. Any other blocker or "reject" is recorded as cheap talk.
-2. **Feasible set.** These are the outcomes that fit the revision budget and leave every veto-holder at least as well off as blocking.
+2. **Feasible set.** These are the outcomes that fit the revision budget and leave every veto-holder at least as well off *in its own veto area* as blocking.
 3. **Settlement.** The broker maximizes a weighted Nash product of each Judge's gain over the disagreement point, then breaks ties by a published rule.
 4. **Transparency.** The settlement goes into the Jury digest with the math shown: what is fixed now, what is deferred, whose threats were cheap talk, and each Judge's net gain.
 
-Because each veto-holder weakly prefers the settlement to blocking, accepting it is a Nash equilibrium of the ratification step. The broker bargains over *priorities*, never facts: it cannot add, drop, reword or re-score anyone's findings.
+A veto reaches only its holder's area, and each holder weakly prefers the settlement to blocking there, so accepting it is a Nash equilibrium of the ratification step. The broker bargains over *priorities*, never facts: it cannot add, drop, reword or re-score anyone's findings.
 
 ## Tests
 
@@ -68,11 +85,11 @@ CI (`.github/workflows/tests.yml`) runs the suite on Python 3.10–3.12 for ever
 
 | Metric (300 panels, seed 7) | Better | Nash broker | Weighted vote |
 |---|---|---|---|
-| Loud-judge displacement | lower | **0.029** | 0.194 |
-| Noise stability | higher | 0.809 | 0.801 |
+| Loud-judge displacement | lower | **0.036** | 0.194 |
+| Noise stability | higher | **0.824** | 0.801 |
 | Veto satisfaction | higher | 1.0 | 1.0 |
-| Judges shut out (avg) | lower | **0.077** | 0.133 |
-| Utilitarian efficiency | higher | 0.962 | **0.988** |
+| Judges shut out (avg) | lower | **0.057** | 0.133 |
+| Utilitarian efficiency | higher | 0.938 | **0.988** |
 
 What the metrics mean:
 - **Loud-judge displacement:** how much the chosen fix list changes when one Judge without a veto inflates every severity by a level and recommends reject.
@@ -81,13 +98,13 @@ What the metrics mean:
 - **Utilitarian efficiency:** the total weighted value addressed, as a share of the best any budget-feasible list could address.
 
 Seeds 1–3 give the same picture:
-- displacement 0.03 vs 0.16–0.17;
-- judges shut out 0.04–0.06 vs 0.12–0.19;
-- stability about equal;
-- efficiency 96–97% vs 99%.
+- displacement 0.03–0.04 vs 0.16–0.17;
+- judges shut out 0.03–0.06 vs 0.12–0.19;
+- stability slightly higher, 0.82–0.84 vs 0.81–0.82;
+- efficiency 93–94% vs 99%.
 
 **Interpretation.**
-- The broker resists one overconfident voice roughly 5–7 times better, and it shuts fewer Judges out. In exchange it addresses about 2–3% less total value.
+- The broker resists one overconfident voice roughly 5 times better, and it shuts fewer Judges out. In exchange it addresses about 5% less total value.
 - That trade is deliberate. The Nash product favors spreading gains over maximizing their sum.
 - The robustness comes from the Nash product's invariance to how a player scales its own utility. Severity values are geometric (1/2/4/8), so inflating every severity by one level is nearly a pure rescale.
 - An early variant capped the value of no-veto blockers. The evaluation showed the cap made displacement *worse* (0.03 → 0.09), so it was removed.

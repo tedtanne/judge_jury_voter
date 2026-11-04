@@ -14,7 +14,7 @@ It does two jobs in the swarm.
 
 **As a Judge**, it scores a subject on how it behaves when every party acts in its own interest. That makes it useful for platform strategy, partner and enterprise terms, API pricing, and operating concepts. Its rubric has five dimensions: Incentive compatibility (1.2), Equilibrium stability (1.2), Commitment credibility (1.0), Pareto efficiency (0.8), and Strategic robustness (1.0).
 
-**As a Broker**, it acts during the Jury round. It treats the other Judges as players bargaining over *which findings the next revision addresses*. It computes a weighted Nash bargaining settlement and puts one proposal into the Jury digest. Every veto-holder is at least as well off accepting that proposal as blocking it.
+**As a Broker**, it acts during the Jury round. It treats the other Judges as players bargaining over *which findings the next revision addresses*. It computes a weighted Nash bargaining settlement and puts one proposal into the Jury digest. Every veto-holder is at least as well off in its own veto area accepting that proposal as blocking it.
 
 ## The negotiation doctrine
 
@@ -84,34 +84,38 @@ The settlement is Pareto-optimal, and accepting it is an equilibrium. The Staff 
 
 | Metric | Better | Nash broker | Weighted vote |
 |---|---|---|---|
-| Loud-judge displacement | lower | **0.029** | 0.194 |
-| Noise stability | higher | 0.809 | 0.801 |
+| Loud-judge displacement | lower | **0.036** | 0.194 |
+| Noise stability | higher | **0.824** | 0.801 |
 | Veto satisfaction | higher | 1.0 | 1.0 |
-| Judges shut out (avg) | lower | **0.077** | 0.133 |
-| Utilitarian efficiency | higher | 0.962 | **0.988** |
+| Judges shut out (avg) | lower | **0.057** | 0.133 |
+| Utilitarian efficiency | higher | 0.938 | **0.988** |
 
-Seeds 1–3 agree. The broker is about 5–7× more resistant to a Judge who inflates every severity, and it shuts out 2–3× fewer Judges. It trails by 2–3 points on total value addressed, which is the expected price of optimizing the Nash product rather than the sum.
+Seeds 1–3 agree. The broker is about 5× more resistant to a Judge who inflates every severity, and it shuts out 2–4× fewer Judges. It trails by about 5 points on total value addressed, which is the expected price of optimizing the Nash product rather than the sum.
 
 **Why cheap talk is "not priced."** An uncredible blocker is never forced and confers no veto. Its value in the Judge's utility is left at the blocker level on purpose. Severity values are geometric (1/2/4/8), so a Judge that inflates everything has only rescaled its own utility, and the Nash product is nearly invariant to that. An earlier variant capped such blockers at the major value. The evaluation showed the cap *raised* displacement from 0.03 to 0.09, because it let inflation reorder the Judge's own findings, so it was removed.
 
 **Limits.** Synthetic panels test the selection rule, not LLM verdict quality, and payoffs come from severity points rather than elicitation. `run_live_comparison` is the hook for the real test: rounds to threshold and blind final scores on live subjects.
 
-## Wiring it into the swarm
+## How it is wired into the swarm
 
-1. **Register the archetype.** Add `NASH_AGENT` to the registry, via `Archetype(**NASH_AGENT)` or a studio import. It is `library=True`, so it joins only through a panel.
-2. **Add the presets** from `NASH_PRESETS` to `PRESET_PANELS` in `jjv/legends.py`:
-   - *The Nash Table*: Nash, Security, Simplifier, Staff Engineer, Product Lead.
-   - *Treaty Room*, for partner and alliance deals: Nash, Attestation Architect, Systems Integrator, Mission Assurance Officer, Product Lead.
-3. **Update the orchestrator.** In the Jury phase, when a convened archetype has `role == "broker"`:
-   - Build verdict dicts that carry `archetype_id`, `weight`, `veto`, `veto_dimensions`, `findings`, `recommendation`, and `endorses`.
-   - Call `NashBroker(budget=…).solve(verdicts)`.
-   - Append `settlement.to_digest()` to the anonymized digest each Judge sees before it revises.
-   - Store the Settlement with the run for audit.
-4. **Add two optional verdict fields** to the schema: `endorses` (finding ids the Judge supports after deliberation) and `change_aversion` (how much the Judge dislikes churn).
-5. **The Voter needs no change.** The broker proposes priorities, and the Voter still aggregates the final verdicts. Its veto policy stays authoritative.
+- **Registry.** `NASH_AGENT` and its presets are in `jjv/registry.py`. It is `library=True`, so it joins only through a panel.
+- **Jury phase.** When a panel includes an archetype with `role == "broker"`, the orchestrator solves the settlement and shows it to each Judge after the fenced digest. It solves under anonymous aliases, so the printed math names no archetype.
+- **Vote phase.** The broker solves again on the final verdicts to pick the fix list. Both settlements are stored with the run.
+- **Verdict fields.** `endorses` and `change_aversion` are collected in the Jury round. Without a Jury, `change_aversion` falls back to 0.25.
+- **Not a player.** Nash_Agent's own findings reach the Voter but are not bargained over.
+- **The Voter is separate.** The broker sets priorities. The Voter still makes the decision, and its veto policy stays authoritative.
+- **No broker on the panel.** The run uses weighted vote, and says so in the round's `aggregator` field.
 
 ## Decisions to confirm
 
+- **A veto reaches only its own area (decided 2026-11-04).** A veto-holder's feasibility check counts only findings on its veto dimensions, so a clean security review no longer blocks a documentation fix. A block removes the optional fixes in that area, and utility adds up across findings, so blocking never pays and acceptance stays an equilibrium. A holder can now show a negative total gain, because its rework cost elsewhere still counts in the Nash product. The cost is about 2 points of utilitarian efficiency in the simulation (96% to 94%).
+
 - **An unvetoed blocker can be deferred.** This is the purist position: without a credible threat behind it, a blocker is cheap talk. If some disciplines should never defer a blocker, give that archetype a veto on the relevant dimension; don't soften the kernel.
 - **Default budget is 8 cost units per revision**, about four majors. Tune it per panel.
-- **Reputation is on only when `history` is passed.** Persisting cheap-talk counts across runs requires one new table.
+- **Reputation needs a store.** The orchestrator saves cheap-talk counts to `reputation.json` beside the run records. Reputation changes later settlements, and a run record does not yet snapshot the history it used.
+
+## Next steps
+
+Broker work still open, from [the full list](architecture.md#next-steps):
+- Make the weighted-vote baseline fair on live panels, then run the live comparison. Offline results are simulations only.
+- Decide whether veto-holders may keep choosing their own finding's dimension, and whether `change_aversion` should stay self-reported.

@@ -1,0 +1,3 @@
+# Live runs only: the orchestrator calls Claude through this SDK. Tests and CI do not need it.
+-r requirements.txt
+claude-agent-sdk>=0.2.178,<0.3
