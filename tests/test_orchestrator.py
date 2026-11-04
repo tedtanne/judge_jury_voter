@@ -89,6 +89,20 @@ def test_physics_panel_veto_is_forced_through_the_broker_and_blocks_approval():
     assert run["rounds"][0]["settlement"]["forced"]
 
 
+def test_a_veto_written_as_its_rubric_name_stays_credible():
+    """Found in a live run: Judges wrote "Physical correctness", not the veto word."""
+    def script(kind, aid, req):
+        if aid == "thermodynamicist":
+            return reply_for(aid, 5, "reject", [finding("Heat", "blocker", "Physical correctness")])
+        if aid == "metering_economist":
+            return reply_for(aid, 5, "reject", [finding("Price", "blocker", "Cost recovery")])
+        return reply_for(aid, 5)
+    run = review(Fake(script), PHYSICS)
+    assert len(run["result"]["vetoes"]) == 2
+    assert len(run["rounds"][0]["settlement"]["forced"]) == 2
+    assert run["rounds"][0]["settlement"]["cheap_talk"] == []
+
+
 def test_judges_are_independent_and_the_digest_is_anonymous():
     fake = Fake(lambda k, aid, r: reply_for(aid, findings=[finding("by-" + aid)]))
     run = review(fake, PHYSICS)

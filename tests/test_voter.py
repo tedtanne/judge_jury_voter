@@ -21,6 +21,8 @@ def verdict(id, alias="A", **kw):
 
 def test_schema_requires_every_rubric_dimension():
     a = get("thermodynamicist")
+    item = schema(a)["properties"]["findings"]["items"]["properties"]["dimension"]
+    assert "physical-correctness" in item["enum"] and "Physical correctness" in item["enum"]
     assert schema(a)["properties"]["scores"]["required"] == [d["name"] for d in a["rubric"]]
     assert "endorses" in schema(a, deliberating=True)["properties"]
 

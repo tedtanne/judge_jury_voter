@@ -8,6 +8,8 @@ Jury round and one Judge cannot overwrite another's finding.
 
 from __future__ import annotations
 
+from jjv.nash import _key
+
 SEVERITIES = ["nit", "minor", "major", "blocker"]
 RECOMMENDATIONS = ["approve", "revise", "reject"]
 
@@ -19,6 +21,7 @@ class VerdictError(ValueError):
 def schema(archetype: dict, *, deliberating: bool = False) -> dict:
     """JSON schema for one Judge's verdict, with that Judge's own rubric as required keys."""
     dims = [d["name"] for d in archetype["rubric"]]
+    vetoes = list(archetype.get("veto_dimensions", []))
     finding = {
         "type": "object",
         "properties": {
@@ -26,7 +29,7 @@ def schema(archetype: dict, *, deliberating: bool = False) -> dict:
                                                    "finding; omit for a new one."},
             "title": {"type": "string"},
             "severity": {"enum": SEVERITIES},
-            "dimension": {"type": "string"},
+            "dimension": {"enum": dims + vetoes},
             "location": {"type": "string"},
             "detail": {"type": "string"},
         },
@@ -58,6 +61,18 @@ def overall(verdict: dict, archetype: dict) -> float:
     weights = {d["name"]: d["weight"] for d in archetype["rubric"]}
     total = sum(weights.values())
     return round(sum(verdict["scores"][n] * w for n, w in weights.items()) / total, 3)
+
+
+def canonical_dimension(dimension: object, archetype: dict) -> object:
+    """Map "Physical correctness" to its veto word "physical-correctness".
+
+    Live Judges write rubric names here. The broker and Voter match veto words exactly, so
+    without this a real veto is downgraded to cheap talk and costs the Judge reputation.
+    """
+    for word in archetype.get("veto_dimensions", []):
+        if _key({"id": dimension}) == word:
+            return word
+    return dimension
 
 
 def normalize(raw: object, archetype: dict, alias: str, *,
@@ -102,7 +117,7 @@ def normalize(raw: object, archetype: dict, alias: str, *,
             "id": fid,
             "title": title,
             "severity": f["severity"],
-            "dimension": f.get("dimension"),
+            "dimension": canonical_dimension(f.get("dimension"), archetype),
             "location": f.get("location", ""),
             "detail": f.get("detail", ""),
         })
