@@ -130,7 +130,10 @@ In recommended order, as of 2026-11-04. Each step makes the next one more trustw
    - One low-scoring Judge can block approval without holding a veto, because the consensus is a plain weighted mean.
    - A veto-holder chooses its own finding's dimension, so it can label any complaint as its veto area.
    - `change_aversion` is self-reported, and a Judge sees the proposal before setting it.
-8. **Build the web interface (Phase 3).** Do this after the steps above, so the interface sits on a loop whose results can be trusted.
+8. **Add an MCP server.** It would let Claude Code, Claude Desktop and other MCP clients call the panels directly, as a usable interface well before the web UI. Build it after the merge in step 2, in two stages:
+   - **Free tools first:** `list_panels`, `list_archetypes`, `get_run`, and `settle`, which re-runs the Voter and Nash on a saved run at a different budget with no model calls.
+   - **Paid tools second:** `review` and `generate`, off unless enabled. An AI would be choosing when to spend, so they need a low default limit and a hard maximum the caller cannot raise. Runs take minutes, so they should return a run id at once and report through `get_run`. Repositories must come from a configured allow-list, not from the caller.
+9. **Build the web interface (Phase 3).** Do this after the steps above, so the interface sits on a loop whose results can be trusted.
 
 ## Build roadmap
 
