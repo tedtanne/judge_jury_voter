@@ -57,11 +57,11 @@ Nash_Agent is a role archetype built on strict game-theoretic negotiation: Nash 
 **As a Broker**, it runs a deterministic bargaining kernel (`NashBroker`) during the Jury round. The Judges are the players, and the thing being negotiated is which findings the next revision addresses under a fixed revision budget. The kernel works in four steps:
 
 1. **Only credible threats count.** A blocker raised by a Judge that holds a veto for that dimension is forced into every outcome. A blocker or "reject" from a Judge without that veto is recorded as cheap talk and not priced.
-2. **Find the frontier.** Among outcomes that fit the budget and leave every veto-holder at least as well off as blocking, it keeps only those where no Judge can gain without another losing.
+2. **Find the frontier.** Among outcomes that fit the budget and leave every veto-holder at least as well off *in its own veto area* as blocking, it keeps only those where no Judge can gain without another losing.
 3. **Split by the weighted Nash product.** It picks the outcome that maximizes the weighted product of each Judge's gain over the disagreement point, and breaks ties with a published rule.
 4. **Publish the math.** The settlement goes into the anonymized Jury digest: what is fixed now, what is deferred, whose threats were cheap talk, and each Judge's net gain.
 
-Because every veto-holder weakly prefers the settlement to blocking, accepting it is a Nash equilibrium of the ratification step. When `history` is supplied, past cheap talk lowers a Judge's weight, down to a floor of half, so reputation carries across runs.
+A veto reaches only its holder's area, and each holder weakly prefers the settlement to blocking there, so accepting it is a Nash equilibrium of the ratification step. When `history` is supplied, past cheap talk lowers a Judge's weight, down to a floor of half, so reputation carries across runs.
 
 **What it may not do.** Nash_Agent bargains over priorities, never over facts. It cannot add, drop, reword, or re-score another Judge's findings. It holds no veto and no stake, because a broker with a threat point is just another player. Its own scores are sincere. The Voter is unchanged: it still aggregates the final verdicts, and its veto policy stays authoritative.
 
@@ -97,10 +97,10 @@ Several controls keep the swarm useful and bounded. **Budgets**: every run carri
 
 - **The full archetype registry.** 46 archetypes (6 defaults, 31 legends, 8 domain roles, Nash_Agent) and 19 presets, with every preset member defined. The roster was ported in October 2026 from the Deliberation Console prototype, which had held it as display-name-keyed data with unscoped veto flags. `jjv/registry.py` provides `get`, `panel`, `validate` and the generated catalog.
 - **Nash_Agent v2 and its bargaining kernel** (`jjv/nash.py`). Version 2 adds coalition, computability and stopping rules from the mechanism-design papers.
-- **The broker evaluation** (`jjv/eval_broker.py`). In an offline simulation of 300 synthetic panels, a single overconfident Judge displaced 3% of the broker's chosen fixes against 19% under weighted voting, and fewer Judges were shut out (0.08 vs 0.13 on average). The cost was 96% vs 99% of the maximum total value addressed. It also has a live-comparison hook for real runs.
+- **The broker evaluation** (`jjv/eval_broker.py`). In an offline simulation of 300 synthetic panels, a single overconfident Judge displaced 4% of the broker's chosen fixes against 19% under weighted voting, and fewer Judges were shut out (0.06 vs 0.13 on average). The cost was 94% vs 99% of the maximum total value addressed. It also has a live-comparison hook for real runs.
 - **The orchestrator** (`jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py`). It runs review and generate modes on the Claude Agent SDK, one isolated `query()` per Judge, with Nash_Agent in the Jury phase, `endorses` and `change_aversion` in the verdict, reputation saved across runs, and `live_run_fn` connecting `run_live_comparison` to the generate loop.
 - **The Voter** (`jjv/voter.py`) and the verdict contract (`jjv/verdicts.py`). The Voter is a deterministic tally; no synthesis agent yet.
-- **115 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
+- **117 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
 
 **Orchestrator decisions worth knowing:**
 - Nash_Agent is not a player. It holds no stake, so its own findings reach the Voter but are not bargained over, and they never enter a generate-loop fix list.

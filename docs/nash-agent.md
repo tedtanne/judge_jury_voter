@@ -14,7 +14,7 @@ It does two jobs in the swarm.
 
 **As a Judge**, it scores a subject on how it behaves when every party acts in its own interest. That makes it useful for platform strategy, partner and enterprise terms, API pricing, and operating concepts. Its rubric has five dimensions: Incentive compatibility (1.2), Equilibrium stability (1.2), Commitment credibility (1.0), Pareto efficiency (0.8), and Strategic robustness (1.0).
 
-**As a Broker**, it acts during the Jury round. It treats the other Judges as players bargaining over *which findings the next revision addresses*. It computes a weighted Nash bargaining settlement and puts one proposal into the Jury digest. Every veto-holder is at least as well off accepting that proposal as blocking it.
+**As a Broker**, it acts during the Jury round. It treats the other Judges as players bargaining over *which findings the next revision addresses*. It computes a weighted Nash bargaining settlement and puts one proposal into the Jury digest. Every veto-holder is at least as well off in its own veto area accepting that proposal as blocking it.
 
 ## The negotiation doctrine
 
@@ -84,13 +84,13 @@ The settlement is Pareto-optimal, and accepting it is an equilibrium. The Staff 
 
 | Metric | Better | Nash broker | Weighted vote |
 |---|---|---|---|
-| Loud-judge displacement | lower | **0.029** | 0.194 |
-| Noise stability | higher | 0.809 | 0.801 |
+| Loud-judge displacement | lower | **0.036** | 0.194 |
+| Noise stability | higher | **0.824** | 0.801 |
 | Veto satisfaction | higher | 1.0 | 1.0 |
-| Judges shut out (avg) | lower | **0.077** | 0.133 |
-| Utilitarian efficiency | higher | 0.962 | **0.988** |
+| Judges shut out (avg) | lower | **0.057** | 0.133 |
+| Utilitarian efficiency | higher | 0.938 | **0.988** |
 
-Seeds 1–3 agree. The broker is about 5–7× more resistant to a Judge who inflates every severity, and it shuts out 2–3× fewer Judges. It trails by 2–3 points on total value addressed, which is the expected price of optimizing the Nash product rather than the sum.
+Seeds 1–3 agree. The broker is about 5× more resistant to a Judge who inflates every severity, and it shuts out 2–4× fewer Judges. It trails by about 5 points on total value addressed, which is the expected price of optimizing the Nash product rather than the sum.
 
 **Why cheap talk is "not priced."** An uncredible blocker is never forced and confers no veto. Its value in the Judge's utility is left at the blocker level on purpose. Severity values are geometric (1/2/4/8), so a Judge that inflates everything has only rescaled its own utility, and the Nash product is nearly invariant to that. An earlier variant capped such blockers at the major value. The evaluation showed the cap *raised* displacement from 0.03 to 0.09, because it let inflation reorder the Judge's own findings, so it was removed.
 
@@ -111,6 +111,8 @@ Seeds 1–3 agree. The broker is about 5–7× more resistant to a Judge who inf
 5. **The Voter needs no change.** The broker proposes priorities, and the Voter still aggregates the final verdicts. Its veto policy stays authoritative.
 
 ## Decisions to confirm
+
+- **A veto reaches only its own area (decided 2026-11-04).** A veto-holder's feasibility check counts only findings on its veto dimensions, so a clean security review no longer blocks a documentation fix. A block removes the optional fixes in that area, and utility adds up across findings, so blocking never pays and acceptance stays an equilibrium. A holder can now show a negative total gain, because its rework cost elsewhere still counts in the Nash product. The cost is about 2 points of utilitarian efficiency in the simulation (96% to 94%).
 
 - **An unvetoed blocker can be deferred.** This is the purist position: without a credible threat behind it, a blocker is cheap talk. If some disciplines should never defer a blocker, give that archetype a veto on the relevant dimension; don't soften the kernel.
 - **Default budget is 8 cost units per revision**, about four majors. Tune it per panel.

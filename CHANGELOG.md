@@ -6,7 +6,10 @@
 - **Orchestrator** (`jjv/orchestrator.py`): review and generate runs, retries, quorum, per-run spending limit, saved run records, reputation across runs, and `live_run_fn` for `run_live_comparison`.
 - **Claude backend** (`jjv/backend.py`) and **CLI** (`jjv/cli.py`). The SDK is in `requirements-live.txt`; tests and CI do not need it.
 - **Voter** (`jjv/voter.py`) and **verdict contract** (`jjv/verdicts.py`).
-- **Tests**: 82 new, bringing the total to 115.
+- **Tests**: 84 new, bringing the total to 117.
+
+### Changed
+- **Vetoes are scoped in the broker.** A veto-holder's feasibility check now counts only findings in its veto area. Before, a holder with nothing to gain blocked every optional fix on the panel. Published results moved at seed 7: displacement 0.029 to 0.036, stability 0.809 to 0.824, judges shut out 0.077 to 0.057, efficiency 0.962 to 0.938. Acceptance is still an equilibrium, and `tests/test_nash_search.py` checks that blocking never pays.
 
 ### Fixed
 - Bare `pytest` failed to import `jjv`; `pytest.ini` now sets the path.

@@ -11,7 +11,7 @@ two faces:
 2. As a **Broker** in the Jury round, it treats the other Judges as players in a
    bargaining game over *which findings the revision must address*, computes the
    weighted Nash bargaining settlement deterministically (``NashBroker``), and hands the
-   Jury a single proposal every veto-holder is individually better off accepting.
+   Jury a single proposal no veto-holder gains by blocking in its own area.
 
 The "extreme" is in rigor, never in manipulation. The broker bargains over *priorities*,
 never over *facts*: it cannot add, drop, reword, or re-score another Judge's finding, it
@@ -257,8 +257,11 @@ class Settlement:
     def is_equilibrium(self) -> bool:
         """Accept-by-all is a Nash equilibrium of the ratification game.
 
-        Only veto-holders can move the outcome by rejecting, and each weakly prefers the
-        settlement to the disagreement point, so no player gains by deviating alone.
+        Only veto-holders can move the outcome by rejecting, and a veto reaches only the
+        holder's own area: blocking strips the optional fixes there and leaves the rest.
+        Utility adds up across findings, so blocking changes the holder's utility by minus
+        its surplus in that area, which feasibility keeps at zero or more. No player gains
+        by deviating alone.
         """
         return self.individually_rational
 
@@ -281,8 +284,8 @@ class Settlement:
         out.append("Surplus over disagreement, by party:")
         out += [f"  - {p}: {g:+.2f}" for p, g in sorted(self.gains.items())]
         out.append(
-            "Every veto-holder is at least as well off accepting as blocking, so "
-            "acceptance is an equilibrium." if self.individually_rational else
+            "Every veto-holder is at least as well off in its own area accepting as "
+            "blocking, so acceptance is an equilibrium." if self.individually_rational else
             "WARNING: a veto-holder is worse off than disagreement; expect a block."
         )
         out.append(f"Selection rule: {self.tie_break_rule}")
@@ -304,7 +307,9 @@ class NashBroker:
     it in deliberation, else 0. Findings that are credible vetoes are forced into every
     outcome, including the disagreement outcome D (a subgame-perfect veto-holder would
     carry the threat out). Feasible S contain D, fit the revision budget, and leave every
-    veto-holder at least as well off as D. Among feasible S we maximize
+    veto-holder at least as well off as D *counting only findings in its veto area*: a
+    security veto cannot block a documentation fix. A holder's rework cost elsewhere still
+    counts against it below, as for any Judge. Among feasible S we maximize
 
         sum_i w_i * phi(u_i(S) - u_i(D)),  phi(g) = log(1+g) if g > 0 else g
 
@@ -395,6 +400,12 @@ class NashBroker:
         return (sum(p.values.get(k, 0.0) for k in S)
                 - p.change_aversion * sum(findings[k].cost for k in S))
 
+    @classmethod
+    def _area_utility(cls, p: Player, S: frozenset, findings: dict) -> float:
+        """Utility from the part of S inside p's veto area: all that p's veto can reach."""
+        return cls._utility(p, frozenset(k for k in S if p.can_veto(findings[k].dimension)),
+                            findings)
+
     def solve(self, verdicts: Iterable[dict]) -> Settlement:
         players, findings, forced, cheap_talk = self.build(verdicts)
         notes: list[str] = []
@@ -407,11 +418,13 @@ class NashBroker:
 
         d = {pid: self._utility(p, D, findings) for pid, p in players.items()}
         vetoers = [p for p in players.values() if p.veto]
+        area_d = {p.id: self._area_utility(p, D, findings) for p in vetoers}
 
         def feasible(S):
             if cost(S) > budget + 1e-9:
                 return False
-            return all(self._utility(p, S, findings) >= d[p.id] - 1e-9 for p in vetoers)
+            return all(self._area_utility(p, S, findings) >= area_d[p.id] - 1e-9
+                       for p in vetoers)
 
         def score(S):
             obj = 0.0
@@ -437,9 +450,9 @@ class NashBroker:
         else:
             notes.append(f"{len(optional)} optional findings; used local search "
                          "(add/drop/swap). Settlement is a local optimum.")
-            # With two veto-holders, each one's fix costs the other a little, so no single
-            # addition to D is feasible and add/drop/swap would stall on an empty list.
-            # Starting with one fix per veto-holder steps over that gap.
+            # Veto-holders sharing an area each lose a little from the other's fix there, so
+            # no single addition may be feasible and add/drop/swap would stall on an empty
+            # list. Starting with one fix per veto-holder steps over that gap.
             seed = D | {max((k for k in optional if k in p.values),
                             key=lambda k: (p.values[k], k), default=None)
                         for p in vetoers} - {None}
@@ -458,8 +471,8 @@ class NashBroker:
                         best, improved = top, True
 
         if optional and best == D:
-            notes.append("No optional finding was chosen: every addition leaves a veto-holder "
-                         "worse off than blocking, or exceeds the budget.")
+            notes.append("No optional finding was chosen: each one is blocked in a "
+                         "veto-holder's area, exceeds the budget, or lowers the Nash product.")
 
         u = {pid: self._utility(p, best, findings) for pid, p in players.items()}
         gains = {pid: round(u[pid] - d[pid], 4) for pid in players}
@@ -485,7 +498,8 @@ class NashBroker:
             budget=budget,
             cost=cost(best),
             objective=score(best)[0],
-            individually_rational=all(gains[p.id] >= -1e-9 for p in vetoers),
+            individually_rational=all(
+                self._area_utility(p, best, findings) >= area_d[p.id] - 1e-9 for p in vetoers),
             pareto_optimal=pareto,
             exact=exact,
             notes=notes,
