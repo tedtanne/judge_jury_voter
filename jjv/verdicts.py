@@ -35,6 +35,11 @@ def schema(archetype: dict, *, deliberating: bool = False, citations: bool = Fal
         },
         "required": ["title", "severity", "dimension", "location", "detail"],
     }
+    if deliberating:
+        finding["properties"]["same_as"] = {
+            "type": "string",
+            "description": "Another Judge's finding id, when this is the same issue.",
+        }
     if citations:
         finding["properties"]["citations"] = {
             "type": "array", "items": {"type": "string"},
@@ -153,6 +158,9 @@ def normalize(raw: object, archetype: dict, alias: str, *,
             "location": f.get("location", ""),
             "detail": f.get("detail", ""),
         })
+        link = f.get("same_as")
+        if isinstance(link, str) and link.upper() in known_ids:
+            findings[-1]["same_as"] = link.upper()
         if citable is not None:
             # A finding kept in the Jury round keeps its citations unless it restates them.
             earlier_cites = next((x.get("citations", []) for x in earlier if x["id"] == fid), [])
@@ -160,6 +168,9 @@ def normalize(raw: object, archetype: dict, alias: str, *,
             findings[-1]["citations"] = _citations(cited, citable, fid, rejected)
 
     own = {f["id"] for f in findings}
+    for f in findings:
+        if f.get("same_as") in own:     # a link joins two Judges, not one Judge's own list
+            del f["same_as"]
     verdict = {
         "archetype_id": archetype["id"],
         "alias": alias,
@@ -192,6 +203,7 @@ def carry_forward(first: list[dict], final: list[dict]) -> tuple[list[dict], lis
     """
     present = {f["id"] for v in final for f in v["findings"]}
     endorsed = {e for v in final for e in v.get("endorses", [])}
+    endorsed |= {f["same_as"] for v in final for f in v["findings"] if "same_as" in f}
     restored, out = [], []
     for old, new in zip(first, final):
         now = {f["id"]: f for f in new["findings"]}
@@ -207,6 +219,48 @@ def carry_forward(first: list[dict], final: list[dict]) -> tuple[list[dict], lis
                 restored.append(f["id"])
         out.append({**new, "findings": list(now.values())})
     return out, restored
+
+
+def link_findings(verdicts: list[dict]) -> tuple[list[dict], list[list[str]]]:
+    """Join findings Judges marked ``same_as``; returns (verdicts, the groups joined).
+
+    Each Judge's words stay as written. Linked findings only share one id, so agreement
+    counts and the issue costs budget once. Links are made by Judges about their own
+    findings: neither the broker nor this code decides that two findings match. The
+    original id stays in ``own_id`` for the audit trail.
+    """
+    parent: dict[str, str] = {}
+
+    def root(x: str) -> str:
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    present = {f["id"] for v in verdicts for f in v["findings"]}
+    for v in verdicts:
+        for f in v["findings"]:
+            if f.get("same_as") in present:
+                a, b = sorted((root(f["id"]), root(f["same_as"])))
+                parent[b] = a
+
+    members: dict[str, list[str]] = {}
+    for x in parent:
+        members.setdefault(root(x), []).append(x)
+    groups = [sorted(m) for m in members.values() if len(m) > 1]
+
+    def canon(x: str) -> str:
+        return root(x) if x in parent else x
+
+    linked = []
+    for v in verdicts:
+        findings = [{**f, "id": canon(f["id"]), "own_id": f["id"]} if f["id"] in parent else f
+                    for f in v["findings"]]
+        own = {f["id"] for f in findings}
+        endorses = sorted({canon(e) for e in v.get("endorses", [])} - own)
+        linked.append({**v, "findings": findings, "endorses": endorses})
+    return linked, sorted(groups)
 
 
 def digest(verdicts: list[dict], viewer: str, fence: str,

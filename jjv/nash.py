@@ -213,7 +213,8 @@ class Player:
     weight: float = 1.0
     veto: bool = False
     veto_dimensions: tuple[str, ...] = ()   # empty + veto=True means any dimension
-    change_aversion: float = 0.25           # utility lost per unit of revision cost
+    change_aversion: float = 0.25           # utility lost per unit of this Judge's share
+    rework_share: float = 1.0               # share of each fix's cost; 1/n once built
     values: dict[str, float] = field(default_factory=dict)
 
     def can_veto(self, dimension: str | None) -> bool:
@@ -300,10 +301,12 @@ class NashBroker:
     The game: players are Judges; the joint decision is the set S of findings the next
     revision addresses. Player i's utility is
 
-        u_i(S) = sum(v_i(f) for f in S) - change_aversion_i * cost(S)
+        u_i(S) = sum(v_i(f) for f in S) - change_aversion_i * cost(S) / n
 
     where v_i(f) is the finding's severity value if i raised it, half that if i endorsed
-    it in deliberation, else 0. Findings that are credible vetoes are forced into every
+    it in deliberation, else 0, and n is the number of players. A fix is done once, so each
+    player bears a share of its cost; charging all of it to everyone penalized a costly fix
+    n times, and a lone blocker could lose to a lone major. Findings that are credible vetoes are forced into every
     outcome, including the disagreement outcome D (a subgame-perfect veto-holder would
     carry the threat out). Feasible S contain D, fit the revision budget, and leave every
     veto-holder at least as well off as D *counting only findings in its veto area*: a
@@ -335,6 +338,8 @@ class NashBroker:
         players: dict[str, Player] = {}
         findings: dict[str, Finding] = {}
         cheap_talk: list[dict] = []
+        forced_set: set[str] = set()
+        blockers: dict[str, list[str]] = {}
 
         verdicts = list(verdicts)
         for v in verdicts:
@@ -362,6 +367,14 @@ class NashBroker:
                 f.cost = max(f.cost, cost)
                 if pid not in f.raised_by:
                     f.raised_by.append(pid)
+                # Judged per raiser: linked findings can carry different dimensions, and a
+                # veto must hold whichever member happens to come first.
+                if sev == "blocker":
+                    if players[pid].can_veto(raw.get("dimension")):
+                        forced_set.add(k)
+                        f.dimension = raw.get("dimension")
+                    else:
+                        blockers.setdefault(k, []).append(pid)
                 players[pid].values[k] = max(players[pid].values.get(k, 0.0),
                                              SEVERITY_VALUE[sev])
 
@@ -376,28 +389,25 @@ class NashBroker:
             if v.get("recommendation") == "reject" and not p.veto:
                 cheap_talk.append({"by": p.id, "what": "recommended reject without a veto"})
 
-        forced = []
         for k, f in findings.items():
-            if f.severity != "blocker":
-                continue
-            if any(players[pid].can_veto(f.dimension) for pid in f.raised_by):
-                forced.append(k)
-            else:
-                for pid in f.raised_by:
+            if k not in forced_set:
+                for pid in blockers.get(k, []):
                     cheap_talk.append({"by": pid, "what": f"blocker without veto: {f.title}"})
+        for p in players.values():
+            p.rework_share = 1 / len(players)
         # Deliberately NOT capping the value of a no-veto blocker. Severity values are
         # geometric (1/2/4/8), so a Judge inflating every finding by one level just
         # rescales its own utility, and the Nash product is (nearly) invariant to that.
         # A cap breaks the symmetry and lets inflation reorder the Judge's findings;
         # jjv.eval_broker measured displacement rising from 0.03 to 0.09 with a cap.
-        return players, findings, sorted(forced), cheap_talk
+        return players, findings, sorted(forced_set), cheap_talk
 
     # -- solving ------------------------------------------------------------
 
     @staticmethod
     def _utility(p: Player, S: frozenset, findings: dict) -> float:
         return (sum(p.values.get(k, 0.0) for k in S)
-                - p.change_aversion * sum(findings[k].cost for k in S))
+                - p.change_aversion * p.rework_share * sum(findings[k].cost for k in S))
 
     @classmethod
     def _area_utility(cls, p: Player, S: frozenset, findings: dict) -> float:

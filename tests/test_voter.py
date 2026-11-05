@@ -1,7 +1,8 @@
 import pytest
 
 from jjv.registry import get
-from jjv.verdicts import VerdictError, carry_forward, digest, normalize, schema
+from jjv.verdicts import (VerdictError, carry_forward, digest, link_findings, normalize,
+                          schema)
 from jjv.voter import credible_vetoes, merge_findings, summary, tally
 
 
@@ -127,6 +128,83 @@ def test_a_finding_nobody_endorsed_may_be_withdrawn():
     first = [normalize(raw(a, findings=[finding()]), a, "A")]
     kept, restored = carry_forward(first, [normalize(raw(a), a, "A", previous=first[0])])
     assert restored == [] and kept[0]["findings"] == []
+
+
+def linked_pair():
+    a, b = get("staff_engineer"), get("product_lead")
+    first = [normalize(raw(a, findings=[finding(title="retry storm")]), a, "A"),
+             normalize(raw(b, findings=[finding(title="retries pile up")]), b, "B")]
+    return a, b, first
+
+
+def test_linking_joins_two_findings_and_keeps_each_judges_words():
+    a, b, first = linked_pair()
+    ids = {"A-1", "B-1"}
+    final = [first[0], normalize(
+        raw(b, findings=[finding(id="B-1", title="retries pile up", same_as="a-1")]), b, "B",
+        previous=first[1], known_ids=ids)]
+    linked, groups = link_findings(final)
+    assert groups == [["A-1", "B-1"]]
+    assert [v["findings"][0]["id"] for v in linked] == ["A-1", "A-1"]
+    assert linked[1]["findings"][0]["own_id"] == "B-1"
+    assert linked[1]["findings"][0]["title"] == "retries pile up"
+    (row,) = merge_findings(linked)
+    assert sorted(row["raised_by"]) == ["product_lead", "staff_engineer"]
+
+
+def test_linked_findings_keep_both_judges_citations():
+    _, _, first = linked_pair()
+    final = [{**first[0], "findings": [{**first[0]["findings"][0], "citations": ["k1"]}]},
+             {**first[1], "findings": [{**first[1]["findings"][0], "citations": ["k2"],
+                                        "same_as": "A-1"}]}]
+    (row,) = merge_findings(link_findings(final)[0])
+    assert row["citations"] == ["k1", "k2"]
+
+
+def test_links_are_transitive_and_mutual_links_are_harmless():
+    a, b, first = linked_pair()
+    c = get("technical_writer")
+    third = normalize(raw(c, findings=[finding(title="z")]), c, "C")
+    ids = {"A-1", "B-1", "C-1"}
+    final = [normalize(raw(a, findings=[finding(id="A-1", title="retry storm", same_as="B-1")]),
+                       a, "A", previous=first[0], known_ids=ids),
+             normalize(raw(b, findings=[finding(id="B-1", title="retries pile up", same_as="A-1")]),
+                       b, "B", previous=first[1], known_ids=ids),
+             normalize(raw(c, findings=[finding(id="C-1", title="z", same_as="B-1")]),
+                       c, "C", previous=third, known_ids=ids)]
+    assert link_findings(final)[1] == [["A-1", "B-1", "C-1"]]
+
+
+def test_a_link_to_nothing_or_to_yourself_is_ignored():
+    a = get("staff_engineer")
+    v = normalize(raw(a, findings=[finding(same_as="Z-9"), finding(title="u", same_as="A-1")]),
+                  a, "A", known_ids={"A-1"})
+    assert all("same_as" not in f for f in v["findings"])
+    assert link_findings([v])[1] == []
+
+
+def test_a_finding_someone_linked_to_cannot_be_withdrawn():
+    a, b, first = linked_pair()
+    ids = {"A-1", "B-1"}
+    final = [normalize(raw(a), a, "A", previous=first[0], known_ids=ids),
+             normalize(raw(b, findings=[finding(id="B-1", title="retries pile up", same_as="A-1")]),
+                       b, "B", previous=first[1], known_ids=ids)]
+    kept, restored = carry_forward(first, final)
+    assert restored == ["A-1"]
+    assert link_findings(kept)[1] == [["A-1", "B-1"]]
+
+
+def test_endorsements_follow_a_link_and_a_judge_cannot_endorse_itself():
+    a, b, first = linked_pair()
+    c = get("technical_writer")
+    third = normalize(raw(c), c, "C")
+    ids = {"A-1", "B-1"}
+    final = [first[0],
+             normalize(raw(b, findings=[finding(id="B-1", title="retries pile up", same_as="A-1")])
+                       | {"endorses": ["A-1"]}, b, "B", previous=first[1], known_ids=ids),
+             normalize(raw(c) | {"endorses": ["B-1"]}, c, "C", previous=third, known_ids=ids)]
+    linked, _ = link_findings(final)
+    assert linked[1]["endorses"] == [] and linked[2]["endorses"] == ["A-1"]
 
 
 def test_all_approving_high_score_is_approved():
