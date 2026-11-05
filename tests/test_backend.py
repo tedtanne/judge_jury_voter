@@ -100,7 +100,8 @@ def test_allowed_keeps_tools_in_the_repo(tmp_path, tool, tool_input, expected):
 
 
 @pytest.mark.parametrize("path", [".env", ".env.local", "config/server.pem", "certs/a.P12",
-                                  "deploy.key", ".git/config", "sub/.ssh/id_rsa", ".npmrc"])
+                                  "deploy.key", ".git/config", "sub/.ssh/id_rsa", ".npmrc",
+                                  ".GIT/config", ".Git/HEAD", "sub/.SSH/id_rsa", ".ENV"])
 def test_secret_files_inside_the_repo_are_denied(tmp_path, path):
     assert not allowed(str(tmp_path), "Read", {"file_path": path})
     assert not allowed(str(tmp_path), "Grep", {"pattern": "x", "path": path})

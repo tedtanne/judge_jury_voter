@@ -159,6 +159,16 @@ def draft_prompt(brief: str, tag: str, draft: str | None, fixes: list[dict]) -> 
     return text
 
 
+def _alias(index: int) -> str:
+    """A, B, ... Z, AA, AB: letters only, so no two Judges' finding ids can collide."""
+    label = ""
+    index += 1
+    while index:
+        index, rest = divmod(index - 1, 26)
+        label = chr(65 + rest) + label
+    return label
+
+
 def _write(path: Path, text: str) -> None:
     """Replace a file in one step, so a crash cannot leave half of it."""
     tmp = path.with_suffix(".tmp")
@@ -177,14 +187,27 @@ class Orchestrator:
         if store and repo and Path(store).resolve().is_relative_to(Path(repo).resolve()):
             # Judges can read the repo; run records name who is behind each alias.
             raise ValueError(f"store {store!r} must be outside the repo Judges can read")
+        if store:
+            # Find out now, before any spending, that a run could not be recorded.
+            try:
+                Path(store).mkdir(parents=True, exist_ok=True)
+                _write(Path(store) / ".writable", "")
+                (Path(store) / ".writable").unlink()
+            except OSError as e:
+                raise ValueError(f"cannot write run records to {store!r}: {e}") from e
         self.on_event = on_event
         self._gate = asyncio.Semaphore(self.config.concurrency)
 
     # -- run record ---------------------------------------------------------
 
     def _new_run(self, mode: str, subject: str, panel: list[dict]) -> dict:
+        if not subject.strip():
+            raise ValueError("nothing to review: the subject is blank")
+        ids = [a["id"] for a in panel]
+        if len(set(ids)) != len(ids):
+            raise ValueError("a Judge appears twice on the panel")
         run_id = uuid.uuid4().hex[:12]
-        letters = [chr(65 + i) for i in range(len(panel))]
+        letters = [_alias(i) for i in range(len(panel))]
         random.Random(run_id).shuffle(letters)     # panel order must not reveal identity
         return {
             "id": run_id, "mode": mode, "status": "running", "phase": "SELECT",
@@ -210,8 +233,14 @@ class Orchestrator:
         if not self.config.store:
             return
         root = Path(self.config.store)
-        root.mkdir(parents=True, exist_ok=True)
-        _write(root / f"{run['id']}.json", json.dumps(run, indent=1, default=str))
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            _write(root / f"{run['id']}.json", json.dumps(run, indent=1, default=str))
+        except OSError as e:
+            # Losing the file must not lose the paid-for result in memory.
+            if "save_error" not in run:
+                run["save_error"] = str(e)
+                self._emit(run, "note", text=f"could not save the run record: {e}")
 
     # -- calling models -----------------------------------------------------
 
@@ -241,11 +270,13 @@ class Orchestrator:
                 error = e
                 if not e.retry:
                     break
+            except OutOfBudget:
+                raise
             except asyncio.TimeoutError as e:
                 # The spend is unknown, so assume the worst rather than under-report it.
                 run["cost_usd"] = round(run["cost_usd"] + (cap or 0.0), 6)
                 error = e
-            except V.VerdictError as e:
+            except Exception as e:     # a bad reply, or an SDK error of any type
                 error = e
         raise BackendError(f"{type(error).__name__}: {error}")
 
@@ -367,9 +398,22 @@ class Orchestrator:
     def _reputation_path(self) -> Path | None:
         return Path(self.config.store) / "reputation.json" if self.config.store else None
 
-    def _reputation(self) -> dict:
+    def _load_reputation(self) -> dict | None:
+        """The saved history, {} if there is none, or None if the file cannot be used."""
         path = self._reputation_path()
-        return json.loads(path.read_text()) if path and path.exists() else {}
+        if not path or not path.exists():
+            return {}
+        try:
+            history = json.loads(path.read_text())
+        except (OSError, ValueError):
+            return None
+        valid = isinstance(history, dict) and all(
+            isinstance(h, dict) and isinstance(h.get("rounds"), int)
+            and isinstance(h.get("cheap_talk"), int) for h in history.values())
+        return history if valid else None
+
+    def _reputation(self) -> dict:
+        return self._load_reputation() or {}
 
     def _update_reputation(self, run: dict) -> None:
         """One count per Judge per run, from the last settlement. Only brokered runs count."""
@@ -377,15 +421,21 @@ class Orchestrator:
         settlement = run["rounds"][-1].get("settlement") if run["rounds"] else None
         if not path or not settlement:
             return
-        history = self._reputation()
+        history = self._load_reputation()
+        if history is None:      # keep the damaged file for a person to look at
+            self._emit(run, "note", text=f"reputation not updated: cannot read {path}")
+            return
         talkers = {c["by"] for c in settlement["cheap_talk"]}
         for archetype_id, alias in run["aliases"].items():
             if alias in settlement["gains"]:
                 h = history.setdefault(archetype_id, {"rounds": 0, "cheap_talk": 0})
                 h["rounds"] += 1
                 h["cheap_talk"] += alias in talkers
-        path.parent.mkdir(parents=True, exist_ok=True)
-        _write(path, json.dumps(history, indent=1, sort_keys=True))
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            _write(path, json.dumps(history, indent=1, sort_keys=True))
+        except OSError as e:
+            self._emit(run, "note", text=f"reputation not updated: {e}")
 
     # -- entry points -------------------------------------------------------
 

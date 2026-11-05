@@ -55,7 +55,11 @@ def progress(event: dict) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
-    text = sys.stdin.read() if args.input == "-" else Path(args.input).read_text()
+    try:
+        text = sys.stdin.read() if args.input == "-" else Path(args.input).read_text()
+    except (OSError, UnicodeDecodeError) as e:
+        print(f"error: cannot read {args.input}: {e}", file=sys.stderr)
+        return 2
     try:
         panel = convene(args.panel, args.judges.split(",") if args.judges else None,
                         args.discipline)
@@ -69,11 +73,11 @@ def main(argv: list[str] | None = None) -> int:
                     threshold=args.threshold)
     try:
         orchestrator = Orchestrator(ClaudeBackend(), config, progress)
+        entry = orchestrator.review if args.mode == "review" else orchestrator.generate
+        run = asyncio.run(entry(text, panel))
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
-    entry = orchestrator.review if args.mode == "review" else orchestrator.generate
-    run = asyncio.run(entry(text, panel))
 
     if run["status"] != "done":
         print(f"run failed: {run['error']}", file=sys.stderr)
