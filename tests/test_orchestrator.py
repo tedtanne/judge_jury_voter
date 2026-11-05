@@ -140,6 +140,34 @@ def test_endorsements_from_the_jury_reach_the_voter():
     assert run["result"]["findings"][0]["endorsed_by"] == ["product_lead"]
 
 
+def test_a_shared_issue_is_fixed_once_and_counts_as_agreement():
+    def script(kind, aid, req):
+        if aid == "staff_engineer":
+            return reply_for(aid, findings=[finding("Retry storm"), finding("Other", sev="minor")])
+        if aid == "product_lead":
+            base = reply_for(aid, findings=[finding("Retries pile up")])
+            if kind == "jury":
+                seen = re.search(r"- (\w-1) \[", req.prompt).group(1)
+                base["findings"][0]["same_as"] = seen
+            return base
+        return reply_for(aid)
+
+    run = review(Fake(script), convene(ids=["staff_engineer", "product_lead", "nash_agent"]),
+                 revision_budget=2)
+    rec = run["rounds"][0]
+    assert len(rec["links"]) == 1
+    row = run["result"]["fixes"][0]
+    assert sorted(row["raised_by"]) == ["product_lead", "staff_engineer"]
+    assert rec["settlement"]["cost"] == 2
+
+
+def test_jury_prompt_asks_for_links_and_never_for_dropping():
+    fake = Fake(lambda k, aid, r: reply_for(aid, findings=[finding("x")]))
+    review(fake, PHYSICS)
+    text = fake.prompts("jury")["metering_economist"]
+    assert "same_as" in text and "drop yours" not in text
+
+
 def test_no_jury_flag_and_single_judge_skip_deliberation():
     assert "jury" not in review(Fake(), PHYSICS, jury=False)["rounds"][0]
     assert "jury" not in review(Fake(), convene(ids=["staff_engineer"]))["rounds"][0]

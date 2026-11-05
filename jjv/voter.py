@@ -45,8 +45,9 @@ def merge_findings(verdicts: list[dict]) -> list[dict]:
                                               "support": 0.0})
             if SEVERITY_RANK[f["severity"]] > SEVERITY_RANK[row["severity"]]:
                 row["severity"] = f["severity"]
-            row["raised_by"].append(v["archetype_id"])
-            row["support"] += v["weight"]
+            if v["archetype_id"] not in row["raised_by"]:
+                row["raised_by"].append(v["archetype_id"])
+                row["support"] += v["weight"]
     for v in verdicts:
         for e in v.get("endorses", []):
             row = merged.get(_key({"id": e}))
