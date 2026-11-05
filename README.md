@@ -50,8 +50,8 @@ python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 **Status.** This repository holds the full archetype registry (46 archetypes, 19 presets, every preset member defined), the negotiation layer and its evaluation, the orchestrator, the Voter, and a CLI. Still to come: the FastAPI backend and web UI, and the live broker comparison on real subjects.
 
 **Next steps**, in recommended order (details in [`docs/architecture.md`](docs/architecture.md#next-steps)):
-1. Merge the `orchestrator` branch through a pull request, so CI runs on Python 3.10–3.12.
-2. Finish a full-model review including the Jury round, with `--max-usd 10`.
+1. Close the remaining trust gaps in the file guard and the settlement text.
+2. Fix how the broker values findings. Live fix lists currently follow list order among equal-severity findings.
 3. Show Judges the brief in generate mode, and carry findings across rounds.
 4. Make the weighted-vote baseline fair on live panels, then run the live broker comparison.
 5. Decide the open incentive questions in the Voter and the broker.
@@ -109,7 +109,7 @@ Seeds 1–3 give the same picture:
 - The robustness comes from the Nash product's invariance to how a player scales its own utility. Severity values are geometric (1/2/4/8), so inflating every severity by one level is nearly a pure rescale.
 - An early variant capped the value of no-veto blockers. The evaluation showed the cap made displacement *worse* (0.03 → 0.09), so it was removed.
 
-**Limits.** Synthetic panels test the aggregation rule, not the quality of LLM verdicts. Payoffs are assigned from severity points, not elicited from the Judges. The test that matters is the live comparison: `run_live_comparison(subjects, run_fn)` drives real generate-loop runs with each aggregator. It reports rounds to reach the quality threshold, and final scores from a separate, blind panel. That is roadmap Phase 5b.
+**Limits.** These results do not yet carry over to live panels. In simulation Judges share finding keys; live, each Judge's findings are unique, so [the first full review](docs/architecture.md#first-full-review-2026-11-04) found fix lists following list order. Synthetic panels test the aggregation rule, not the quality of LLM verdicts. Payoffs are assigned from severity points, not elicited from the Judges. The test that matters is the live comparison: `run_live_comparison(subjects, run_fn)` drives real generate-loop runs with each aggregator. It reports rounds to reach the quality threshold, and final scores from a separate, blind panel. That is roadmap Phase 5b.
 
 ## Related work
 

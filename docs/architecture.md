@@ -116,20 +116,33 @@ An interactive prototype (the Deliberation Console, published as an Artifact) de
 
 What remains to reach production is the Phase 6 hardening below: a real queue, Postgres, auth, model-tier tuning, and an evaluation set. The roster and rubrics are expected to keep evolving as they meet real subjects.
 
+## First full review (2026-11-04)
+
+The Nash Table reviewed the orchestrator merge with Opus and Sonnet, repo access and the Jury round: REVISE at 2.68/5, one security veto, 58 findings, $6.63, no Judge failures. An earlier attempt ran out of budget before the Jury.
+
+**What it showed about the system:**
+- **Deliberation changes outcomes.** One finding rose from minor to a veto blocker after another Judge's finding, the Product Lead moved from approve to revise, and the mean Judge score fell from 3.02 to 2.70.
+- **Fix lists follow list order.** Live finding ids are unique per Judge, so findings of equal severity tie and the tie-break takes the first id. The first proposal was each Judge's first-listed findings, not the most important ones.
+- **Severity can invert.** Every Judge pays the rework cost of a fix, so with four Judges a lone major is chosen and a lone non-veto blocker is dropped.
+- **The scoped veto check rarely binds.** Each veto word has one holder, and a Judge can tag only its own words, so a holder's area holds only its own findings. Vetoes act through forced blockers. The equilibrium claim is true, but it says little about live panels.
+- **Asking Judges to endorse rather than repeat barely removes duplicates.** Findings went from 60 to 58, with 18 restored by `carry_forward`.
+
 ## Next steps
 
 In recommended order, as of 2026-11-04. Each step makes the next one more trustworthy.
 
-1. **Merge `orchestrator` into `main` through a pull request.** CI runs only on `main` and on pull requests, so this is what tests the code on Python 3.10 and 3.11.
-2. **Finish a full review with the Jury round.** The first full-model review ran out of budget before deliberation: five Judges with repo access cost $3.33 of a $5 limit, leaving too little for the Jury. Rerun it with `--max-usd 10`. Spending is also split per phase, not planned, so the Judge round should leave a reserve for the Jury.
+1. **Close the remaining trust gaps.** The file guard must deny when its check fails, secret files inside the repo must be blocked, and finding titles must not be able to forge lines in the settlement.
+2. **Fix how the broker values findings.** Live fix lists are not yet reliable; see [the first full review](#first-full-review-2026-11-04). This changes the kernel's scoring, so the published evaluation must be rerun.
 3. **Show Judges the brief in generate mode.** Judges and the blind panel see only the draft, so a polished draft that misses the brief can still score well.
 4. **Carry findings across generate rounds.** Deferred findings are "on record" only in the run file. The next round starts fresh, and nothing checks that a chosen fix was made.
 5. **Make the weighted-vote baseline fair on live panels.** Live finding ids are unique per Judge, so votes never add up across Judges as they do in the simulation. Fix this before step 6 or the comparison is not like for like. Matching equivalent findings is the hard part.
 6. **Run the live comparison (Phase 5b).** `live_run_fn` is ready and tested but has no CLI command yet, and it has never run on real subjects. It is the test that decides whether the broker earns its roughly 5% cost in total value addressed.
-7. **Decide the open incentive questions.** The panel raised three, none resolved:
+7. **Decide the open incentive questions.** The panel raised these, none resolved:
    - One low-scoring Judge can block approval without holding a veto, because the consensus is a plain weighted mean.
    - A veto-holder chooses its own finding's dimension, so it can label any complaint as its veto area.
    - `change_aversion` is self-reported, and a Judge sees the proposal before setting it.
+   - The settlement Judges see is a proposal. The binding one is solved afterwards, and no Judge ratifies it.
+   - Reputation changes later settlements, but a run record does not save the history it used.
 8. **Add an MCP server.** It would let Claude Code, Claude Desktop and other MCP clients call the panels directly, as a usable interface well before the web UI. Build it after the merge in step 1, in two stages:
    - **Free tools first:** `list_panels`, `list_archetypes`, `get_run`, and `settle`, which re-runs the Voter and Nash on a saved run at a different budget with no model calls.
    - **Paid tools second:** `review` and `generate`, off unless enabled. An AI would be choosing when to spend, so they need a low default limit and a hard maximum the caller cannot raise. Runs take minutes, so they should return a run id at once and report through `get_run`. Repositories must come from a configured allow-list, not from the caller.
@@ -137,7 +150,7 @@ In recommended order, as of 2026-11-04. Each step makes the next one more trustw
 
 ## Build roadmap
 
-The phases are ordered so each produces something usable and de-risks the next. Phases 0–2 and 5 are in the repository, along with the wiring for 5b and the registry half of Phase 4. The live measurement in 5b, Phase 3, the studio half of Phase 4, and Phases 5c and 6 remain. See [Next steps](#next-steps) for the recommended order.
+The phases are ordered so each produces something usable and de-risks the next. Phases 0–2 and 5 are in the repository and have run live, along with the wiring for 5b and the registry half of Phase 4. The live measurement in 5b, Phase 3, the studio half of Phase 4, and Phases 5c and 6 remain. See [Next steps](#next-steps) for the recommended order.
 
 **Phase 0 — Design (this document).** Lock the archetype schema, the verdict JSON schema, and the run state machine. These three contracts are what everything else depends on.
 
