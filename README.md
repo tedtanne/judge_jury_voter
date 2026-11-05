@@ -59,7 +59,24 @@ python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 
 Design rationale is in [`docs/architecture.md`](docs/architecture.md). The broker spec is in [`docs/nash-agent.md`](docs/nash-agent.md), the domain archetypes are in [`docs/domain-agents.md`](docs/domain-agents.md), and every archetype and preset is listed in [`docs/archetypes.md`](docs/archetypes.md).
 
-**About the archetypes.** "Legend" archetypes are trait profiles: lenses *inspired by* how notable people are publicly known to work. They are not impersonations. They never speak as those people, and no endorsement or affiliation is implied. Role archetypes, such as The Cryptographer and Nash_Agent, are modeled on a discipline, not on any person.
+## The archetypes
+
+An archetype is one reviewer lens: a persona, a scoring rubric, a weight, and sometimes a veto. There are 46, in four groups:
+
+| Group | Count | Who they are | Examples |
+|---|---|---|---|
+| Defaults | 6 | Generic reviewers that convene automatically by discipline. The Drafter writes drafts and never votes. | Staff Engineer, Security Reviewer, Technical Writer |
+| Legends | 31 | Trait profiles across engineering (9), founders (9), design (5), investors (3), mission roles (3), plus The Simplifier and The Clarity Editor. They join through presets. | The Reliability Engineer, The Reductionist, The Value Investor |
+| Domain roles | 8 | Specialists modeled on a discipline, each with standards drawn from published papers. | The Cryptographer, The Evidence Auditor, The Thermodynamicist |
+| Broker | 1 | Nash_Agent, which judges a subject and also brokers the Jury round. It holds no veto. | Nash_Agent |
+
+Twelve archetypes hold a veto, each on one area. For example, the Security Reviewer holds `security` and The Thermodynamicist holds `physical-correctness`.
+
+A **preset** is a ready-made panel of 3–6 archetypes, and there are 19. For example, *Physics of Compute* convenes The Thermodynamicist, The Metering Economist, The Silicon Compiler Architect, The Evidence Auditor and Nash_Agent.
+
+"Legend" archetypes are trait profiles: lenses *inspired by* how notable people are publicly known to work. They are not impersonations. They never speak as those people, and no endorsement or affiliation is implied. Role archetypes, such as The Cryptographer and Nash_Agent, are modeled on a discipline, not on any person.
+
+Every archetype, veto and preset is listed in [`docs/archetypes.md`](docs/archetypes.md).
 
 ## The Nash_Agent broker in brief
 
