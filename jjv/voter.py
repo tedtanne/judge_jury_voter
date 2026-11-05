@@ -45,6 +45,9 @@ def merge_findings(verdicts: list[dict]) -> list[dict]:
                                               "support": 0.0})
             if SEVERITY_RANK[f["severity"]] > SEVERITY_RANK[row["severity"]]:
                 row["severity"] = f["severity"]
+            if f.get("citations"):
+                # A new list: the row shares its first finding's, which must not change.
+                row["citations"] = sorted({*row.get("citations", []), *f["citations"]})
             row["raised_by"].append(v["archetype_id"])
             row["support"] += v["weight"]
     for v in verdicts:
