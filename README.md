@@ -9,14 +9,14 @@ A swarm of AI review agents. Each agent is an *archetype* of a best-in-the-busin
 - **The Voter** aggregates the final verdicts into a decision and a ranked action list.
 - **A Generator loop** reuses the same panel to draft, critique and revise from a brief.
 
-The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs during the Jury round. It treats the Judges as players bargaining over which findings the next revision fixes, under a fixed revision budget. It settles that bargaining with the Nash bargaining solution, not a vote. A Judge's threat counts only when it holds a veto for that area. An offline evaluation finds this makes the panel roughly **5× harder for one overconfident Judge to steer** than weighted voting (see [Evaluation](#evaluation)).
+The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs during the Jury round. It treats the Judges as players bargaining over which findings the next revision fixes, under a fixed revision budget. It settles that bargaining with the Nash bargaining solution, not a vote. A Judge's threat counts only when it holds a veto for that area. In simulation this resists one overconfident Judge far better than weighted voting, but that has not been shown on live panels (see [Evaluation](#evaluation)).
 
 ## Quick start
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest -q                                          # 152 unit tests, no API key needed
+pytest -q                                          # 164 unit tests, no API key needed
 python -m jjv.registry > docs/archetypes.md        # regenerate the archetype catalog
 python -m jjv.eval_broker --trials 300 --seed 7    # Nash broker vs weighted vote
 ```
@@ -44,13 +44,13 @@ python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 | Orchestrator | Runs SELECT, JUDGE, JURY, VOTE and the generate loop in fixed order, with retries, quorum, spending limit, saved run records and reputation | `jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py` |
 | Voter | Deterministic tally: consensus score, decision by veto policy, ranked findings, dissents | `jjv/voter.py`, `jjv/verdicts.py` |
 | Evaluation | Nash broker vs weighted voting: offline simulation plus a live-comparison hook | `jjv/eval_broker.py` |
-| Tests and CI | 152 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
+| Tests and CI | 164 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
 | Design docs | The full swarm architecture and roadmap, the broker spec, the domain-agent library map, and the catalog | `docs/` |
 
 **Status.** This repository holds the full archetype registry (46 archetypes, 19 presets, every preset member defined), the negotiation layer and its evaluation, the orchestrator, the Voter, and a CLI. Still to come: the FastAPI backend and web UI, and the live broker comparison on real subjects.
 
 **Next steps**, in recommended order (details in [`docs/architecture.md`](docs/architecture.md#next-steps)):
-1. Fix how the broker values findings. Live fix lists currently follow list order among equal-severity findings.
+1. Confirm finding links on the full models. So far they have been checked on two cheap-model runs.
 2. Show Judges the brief in generate mode, and carry findings across rounds.
 3. Make the weighted-vote baseline fair on live panels, then run the live broker comparison.
 4. Decide the open incentive questions in the Voter and the broker.
@@ -87,6 +87,8 @@ Every archetype, veto and preset is listed in [`docs/archetypes.md`](docs/archet
 
 A veto reaches only its holder's area, and each holder weakly prefers the settlement to blocking there, so accepting it is a Nash equilibrium of the ratification step. The broker bargains over *priorities*, never facts: it cannot add, drop, reword or re-score anyone's findings.
 
+In the Jury round a Judge can mark its own finding `same_as` another Judge's. Linked findings are fixed as one, so agreement counts and an issue costs the budget once. Each Judge's words stay on record.
+
 ## Tests
 
 ```bash
@@ -101,11 +103,11 @@ CI (`.github/workflows/tests.yml`) runs the suite on Python 3.10–3.12 for ever
 
 | Metric (300 panels, seed 7) | Better | Nash broker | Weighted vote |
 |---|---|---|---|
-| Loud-judge displacement | lower | **0.036** | 0.194 |
-| Noise stability | higher | **0.824** | 0.801 |
+| Loud-judge displacement | lower | **0.012** | 0.194 |
+| Noise stability | higher | **0.848** | 0.801 |
 | Veto satisfaction | higher | 1.0 | 1.0 |
 | Judges shut out (avg) | lower | **0.057** | 0.133 |
-| Utilitarian efficiency | higher | 0.938 | **0.988** |
+| Utilitarian efficiency | higher | 0.957 | **0.988** |
 
 What the metrics mean:
 - **Loud-judge displacement:** how much the chosen fix list changes when one Judge without a veto inflates every severity by a level and recommends reject.
@@ -114,18 +116,18 @@ What the metrics mean:
 - **Utilitarian efficiency:** the total weighted value addressed, as a share of the best any budget-feasible list could address.
 
 Seeds 1–3 give the same picture:
-- displacement 0.03–0.04 vs 0.16–0.17;
-- judges shut out 0.03–0.06 vs 0.12–0.19;
-- stability slightly higher, 0.82–0.84 vs 0.81–0.82;
-- efficiency 93–94% vs 99%.
+- displacement 0.01–0.03 vs 0.16–0.17;
+- judges shut out 0.04–0.06 vs 0.12–0.19;
+- stability higher, 0.84–0.86 vs 0.81–0.82;
+- efficiency 95–96% vs 99%.
 
 **Interpretation.**
-- The broker resists one overconfident voice roughly 5 times better, and it shuts fewer Judges out. In exchange it addresses about 5% less total value.
+- In these simulated panels the broker resists one overconfident voice about 6–16 times better, and it shuts fewer Judges out. In exchange it addresses about 3–4% less total value.
 - That trade is deliberate. The Nash product favors spreading gains over maximizing their sum.
 - The robustness comes from the Nash product's invariance to how a player scales its own utility. Severity values are geometric (1/2/4/8), so inflating every severity by one level is nearly a pure rescale.
 - An early variant capped the value of no-veto blockers. The evaluation showed the cap made displacement *worse* (0.03 → 0.09), so it was removed.
 
-**Limits.** These results do not yet carry over to live panels. In simulation Judges share finding keys; live, each Judge's findings are unique, so [the first full review](docs/architecture.md#first-full-review-2026-11-04) found fix lists following list order. Synthetic panels test the aggregation rule, not the quality of LLM verdicts. Payoffs are assigned from severity points, not elicited from the Judges. The test that matters is the live comparison: `run_live_comparison(subjects, run_fn)` drives real generate-loop runs with each aggregator. It reports rounds to reach the quality threshold, and final scores from a separate, blind panel. That is roadmap Phase 5b.
+**Limits.** These results do not carry over to live panels so far. On panels built to imitate live ones, with far more issues than the budget fits, the two rules were nearly tied: displacement 0.41–0.43 vs 0.42–0.44, and voting was slightly ahead on value and blockers. Only the live comparison can settle it. Synthetic panels test the aggregation rule, not the quality of LLM verdicts. Payoffs are assigned from severity points, not elicited from the Judges. The test that matters is the live comparison: `run_live_comparison(subjects, run_fn)` drives real generate-loop runs with each aggregator. It reports rounds to reach the quality threshold, and final scores from a separate, blind panel. That is roadmap Phase 5b.
 
 ## Related work
 

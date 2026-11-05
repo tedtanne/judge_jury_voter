@@ -6,9 +6,13 @@
 - **Orchestrator** (`jjv/orchestrator.py`): review and generate runs, retries, quorum, per-run spending limit, saved run records, reputation across runs, and `live_run_fn` for `run_live_comparison`.
 - **Claude backend** (`jjv/backend.py`) and **CLI** (`jjv/cli.py`). The SDK is in `requirements-live.txt`; tests and CI do not need it.
 - **Voter** (`jjv/voter.py`) and **verdict contract** (`jjv/verdicts.py`).
-- **Tests**: 119 new, bringing the total to 152.
+- **Tests**: 131 new, bringing the total to 164.
 
 ### Changed
+- **Findings can be linked.** In the Jury round a Judge marks its own finding `same_as` another Judge's, and linked findings share one key. This replaces "drop yours and endorse theirs". On a cheap-model code review, 37 findings became 24 rows, where the old instruction took 60 to 58.
+- **Rework cost is shared.** Each Judge bears a 1/n share of a fix's cost, so a lone blocker no longer loses to a lone major.
+- **Veto credibility is judged per raiser.** A joined group stays forced if any member is a credible veto, and a Judge's inflated blocker no longer rides on a veto-holder's finding. At seed 7: displacement 0.036 to 0.012, stability 0.824 to 0.848, efficiency 0.938 to 0.957, Judges shut out unchanged.
+- **README claim softened.** "5x harder to steer" is gone, because panels built to imitate live ones showed a near tie with weighted voting.
 - **Docs** record the first full review, including limits on earlier claims: live fix lists follow list order, the scoped veto check rarely binds, and the evaluation does not yet describe live panels.
 - **Docs** now carry a prioritized next-steps list (`docs/architecture.md`, summarized in the README), and no longer describe finished wiring as a to-do.
 - **Vetoes are scoped in the broker.** A veto-holder's feasibility check now counts only findings in its veto area. Before, a holder with nothing to gain blocked every optional fix on the panel. Published results moved at seed 7: displacement 0.029 to 0.036, stability 0.809 to 0.824, judges shut out 0.077 to 0.057, efficiency 0.962 to 0.938. Acceptance is still an equilibrium, and `tests/test_nash_search.py` checks that blocking never pays.

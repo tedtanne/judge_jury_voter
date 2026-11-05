@@ -97,18 +97,18 @@ Several controls keep the swarm useful and bounded. **Budgets**: every run carri
 
 - **The full archetype registry.** 46 archetypes (6 defaults, 31 legends, 8 domain roles, Nash_Agent) and 19 presets, with every preset member defined. The roster was ported in October 2026 from the Deliberation Console prototype, which had held it as display-name-keyed data with unscoped veto flags. `jjv/registry.py` provides `get`, `panel`, `validate` and the generated catalog.
 - **Nash_Agent v2 and its bargaining kernel** (`jjv/nash.py`). Version 2 adds coalition, computability and stopping rules from the mechanism-design papers.
-- **The broker evaluation** (`jjv/eval_broker.py`). In an offline simulation of 300 synthetic panels, a single overconfident Judge displaced 4% of the broker's chosen fixes against 19% under weighted voting, and fewer Judges were shut out (0.06 vs 0.13 on average). The cost was 94% vs 99% of the maximum total value addressed. It also has a live-comparison hook for real runs.
+- **The broker evaluation** (`jjv/eval_broker.py`). In an offline simulation of 300 synthetic panels, a single overconfident Judge displaced 1% of the broker's chosen fixes against 19% under weighted voting, and fewer Judges were shut out (0.06 vs 0.13 on average). The cost was 96% vs 99% of the maximum total value addressed. It also has a live-comparison hook for real runs.
 - **The orchestrator** (`jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py`). It runs review and generate modes on the Claude Agent SDK, one isolated `query()` per Judge, with Nash_Agent in the Jury phase, `endorses` and `change_aversion` in the verdict, reputation saved across runs, and `live_run_fn` connecting `run_live_comparison` to the generate loop.
 - **The Voter** (`jjv/voter.py`) and the verdict contract (`jjv/verdicts.py`). The Voter is a deterministic tally; no synthesis agent yet.
-- **152 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
+- **164 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
 
 **Orchestrator decisions worth knowing:**
-- Nash_Agent is not a player. It holds no stake, so its own findings reach the Voter but are not bargained over, and they never enter a generate-loop fix list.
+- Nash_Agent is not a player. It holds no stake, so its own findings reach the Voter but are not bargained over. One reaches a fix list only if a Judge links a finding to it.
 - More than half the panel must report, or the run fails with no decision. A veto-holder that never reported blocks approval.
 - Judges get read-only tools only when a run names a repository, and a `PreToolUse` hook confines those tools to it, blocks secret files by name, and denies if its own check fails. A `Grep` over a directory skips gitignored files, but a secret that git does not ignore can still be searched, and `Glob` can list the names of secret files, though not their contents. User settings, memory and MCP servers are kept out of every Judge.
 - A Jury round cannot remove a veto blocker or an endorsed finding. `carry_forward` restores them in code and records it in the round's `restored` list, because Judges revise concurrently and read text quoted from the subject.
 - The spending limit is checked between calls, so a run can slightly exceed it. A timed-out call is charged its full cap, because its real spend is unknown.
-- Near-duplicate findings are not merged by code. Judges are told to endorse rather than repeat in the Jury round, so skipping the Jury leaves duplicates in the list.
+- Judges link matching findings with `same_as` in the Jury round, and code only joins what they linked. Skipping the Jury leaves duplicates in the list.
 
 **Not yet built:** the FastAPI backend with SSE and the web UI. An earlier version of this document said a `judge_jury_voter.zip` scaffold held these modules; the zip on hand holds only this repository, so the orchestrator and Voter were written new in November 2026.
 
@@ -135,11 +135,11 @@ One reviewer and a five-Judge panel reviewed four small samples with two planted
 
 In recommended order, as of 2026-11-04. Each step makes the next one more trustworthy.
 
-1. **Fix how the broker values findings.** Live fix lists are not yet reliable; see [the first full review](#first-full-review-2026-11-04). This changes the kernel's scoring, so the published evaluation must be rerun.
+1. **Confirm finding links on the full models.** Two cheap-model runs passed: by hand, about 1 of 36 links looked wrong and about 15% of clear matches were missed, within the limits of 20% missed and 10% wrong. One full-model review would confirm it. Findings no Judge linked still tie within a severity.
 2. **Show Judges the brief in generate mode.** Judges and the blind panel see only the draft, so a polished draft that misses the brief can still score well.
 3. **Carry findings across generate rounds.** Deferred findings are "on record" only in the run file. The next round starts fresh, and nothing checks that a chosen fix was made.
-4. **Make the weighted-vote baseline fair on live panels.** Live finding ids are unique per Judge, so votes never add up across Judges as they do in the simulation. Fix this before step 5 or the comparison is not like for like. Matching equivalent findings is the hard part.
-5. **Run the live comparison (Phase 5b).** `live_run_fn` is ready and tested but has no CLI command yet, and it has never run on real subjects. It is the test that decides whether the broker earns its roughly 5% cost in total value addressed.
+4. **Finish the fair weighted-vote baseline.** Linked findings now share a key, so votes add up across Judges as they do in the simulation. The baseline still ignores `endorses`, which the broker counts.
+5. **Run the live comparison (Phase 5b).** `live_run_fn` is ready and tested but has no CLI command yet, and it has never run on real subjects. If Nash does not beat weighted voting, make voting the default and keep Nash as an option.
 6. **Decide the open incentive questions.** The panel raised these, none resolved:
    - One low-scoring Judge can block approval without holding a veto, because the consensus is a plain weighted mean.
    - A veto-holder chooses its own finding's dimension, so it can label any complaint as its veto area.
