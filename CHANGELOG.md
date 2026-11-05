@@ -3,10 +3,11 @@
 ## 2026-11-04
 
 ### Added
+- **Grounded runs** (`jjv/knowledge.py`, `--knowledge`): Judges can look up and cite a personal knowledge base through the optional `km` package. Off by default. A citation counts only if that Judge read the record, and the run record stores ids and version hashes, not note text. Not yet run live.
 - **Orchestrator** (`jjv/orchestrator.py`): review and generate runs, retries, quorum, per-run spending limit, saved run records, reputation across runs, and `live_run_fn` for `run_live_comparison`.
 - **Claude backend** (`jjv/backend.py`) and **CLI** (`jjv/cli.py`). The SDK is in `requirements-live.txt`; tests and CI do not need it.
 - **Voter** (`jjv/voter.py`) and **verdict contract** (`jjv/verdicts.py`).
-- **Tests**: 131 new, bringing the total to 164.
+- **Tests**: 164 new, bringing the total to 197.
 
 ### Changed
 - **Findings can be linked.** In the Jury round a Judge marks its own finding `same_as` another Judge's, and linked findings share one key. This replaces "drop yours and endorse theirs". On a cheap-model code review, 37 findings became 24 rows, where the old instruction took 60 to 58.

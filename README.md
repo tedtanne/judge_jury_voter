@@ -16,7 +16,7 @@ The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs durin
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest -q                                          # 164 unit tests, no API key needed
+pytest -q                                          # 197 unit tests, no API key needed
 python -m jjv.registry > docs/archetypes.md        # regenerate the archetype catalog
 python -m jjv.eval_broker --trials 300 --seed 7    # Nash broker vs weighted vote
 ```
@@ -44,7 +44,7 @@ python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 | Orchestrator | Runs SELECT, JUDGE, JURY, VOTE and the generate loop in fixed order, with retries, quorum, spending limit, saved run records and reputation | `jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py` |
 | Voter | Deterministic tally: consensus score, decision by veto policy, ranked findings, dissents | `jjv/voter.py`, `jjv/verdicts.py` |
 | Evaluation | Nash broker vs weighted voting: offline simulation plus a live-comparison hook | `jjv/eval_broker.py` |
-| Tests and CI | 164 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
+| Tests and CI | 197 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
 | Design docs | The full swarm architecture and roadmap, the broker spec, the domain-agent library map, and the catalog | `docs/` |
 
 **Status.** This repository holds the full archetype registry (46 archetypes, 19 presets, every preset member defined), the negotiation layer and its evaluation, the orchestrator, the Voter, and a CLI. Still to come: the FastAPI backend and web UI, and the live broker comparison on real subjects.

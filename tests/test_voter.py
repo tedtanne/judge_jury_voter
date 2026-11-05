@@ -152,6 +152,15 @@ def test_linking_joins_two_findings_and_keeps_each_judges_words():
     assert sorted(row["raised_by"]) == ["product_lead", "staff_engineer"]
 
 
+def test_linked_findings_keep_both_judges_citations():
+    _, _, first = linked_pair()
+    final = [{**first[0], "findings": [{**first[0]["findings"][0], "citations": ["k1"]}]},
+             {**first[1], "findings": [{**first[1]["findings"][0], "citations": ["k2"],
+                                        "same_as": "A-1"}]}]
+    (row,) = merge_findings(link_findings(final)[0])
+    assert row["citations"] == ["k1", "k2"]
+
+
 def test_links_are_transitive_and_mutual_links_are_harmless():
     a, b, first = linked_pair()
     c = get("technical_writer")
