@@ -111,7 +111,8 @@ def normalize(raw: object, archetype: dict, alias: str, *,
             raise VerdictError("finding without a title")
         if f.get("severity") not in SEVERITIES:
             raise VerdictError(f"bad severity: {f.get('severity')!r}")
-        title = str(f["title"]).strip()
+        # One line only: titles are printed in the settlement, outside the digest's fence.
+        title = " ".join(str(f["title"]).split())
         # A kept finding must keep its id, or endorsements of it would silently dangle.
         given = f.get("id")
         fid = given if isinstance(given, str) and given in mine else by_title.get(title)
@@ -180,8 +181,8 @@ def digest(verdicts: list[dict], viewer: str, fence: str,
     """The anonymized digest one Judge reads: everyone else's verdicts, by alias only.
 
     Judges' words can quote the subject, so they sit inside ``fence``, a tag they cannot
-    guess. The settlement comes from the broker, so it sits outside, where text from the
-    fenced part cannot imitate it.
+    guess. The settlement sits outside. It still prints finding titles, but ``normalize``
+    keeps each to one line, so a title cannot add lines to the settlement.
     """
     out = ["ANONYMIZED DIGEST OF THE OTHER JUDGES", f"<{fence}>", ""]
     for v in sorted(verdicts, key=lambda v: v["alias"]):

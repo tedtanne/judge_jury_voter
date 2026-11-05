@@ -6,7 +6,7 @@
 - **Orchestrator** (`jjv/orchestrator.py`): review and generate runs, retries, quorum, per-run spending limit, saved run records, reputation across runs, and `live_run_fn` for `run_live_comparison`.
 - **Claude backend** (`jjv/backend.py`) and **CLI** (`jjv/cli.py`). The SDK is in `requirements-live.txt`; tests and CI do not need it.
 - **Voter** (`jjv/voter.py`) and **verdict contract** (`jjv/verdicts.py`).
-- **Tests**: 84 new, bringing the total to 117.
+- **Tests**: 102 new, bringing the total to 135.
 
 ### Changed
 - **Docs** record the first full review, including limits on earlier claims: live fix lists follow list order, the scoped veto check rarely binds, and the evaluation does not yet describe live panels.
@@ -14,6 +14,11 @@
 - **Vetoes are scoped in the broker.** A veto-holder's feasibility check now counts only findings in its veto area. Before, a holder with nothing to gain blocked every optional fix on the panel. Published results moved at seed 7: displacement 0.029 to 0.036, stability 0.809 to 0.824, judges shut out 0.077 to 0.057, efficiency 0.962 to 0.938. Acceptance is still an equilibrium, and `tests/test_nash_search.py` checks that blocking never pays.
 
 ### Fixed
+- Found by the second full review:
+  - **File guard** now denies when its own check fails. A crashed hook counted as no decision, so the tool ran.
+  - **Secret files** inside the repo are blocked by name, and `.git`, `.ssh`, `.aws` and `.gnupg` by folder. A secret that git does not ignore can still be reached by `Grep` over a directory.
+  - **Finding titles** are kept to one line, so they cannot forge lines in the settlement.
+  - **Grep** patterns are no longer checked as paths, and brace expansion no longer hides `..` in Glob patterns.
 - Bare `pytest` failed to import `jjv`; `pytest.ini` now sets the path.
 - `docs/architecture.md` said the scaffold zip held these modules. It does not.
 - Found by the first full panel review of this code:
