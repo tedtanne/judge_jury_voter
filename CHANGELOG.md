@@ -9,6 +9,7 @@
 - **Tests**: 84 new, bringing the total to 117.
 
 ### Changed
+- **Docs** record the first full review, including limits on earlier claims: live fix lists follow list order, the scoped veto check rarely binds, and the evaluation does not yet describe live panels.
 - **Docs** now carry a prioritized next-steps list (`docs/architecture.md`, summarized in the README), and no longer describe finished wiring as a to-do.
 - **Vetoes are scoped in the broker.** A veto-holder's feasibility check now counts only findings in its veto area. Before, a holder with nothing to gain blocked every optional fix on the panel. Published results moved at seed 7: displacement 0.029 to 0.036, stability 0.809 to 0.824, judges shut out 0.077 to 0.057, efficiency 0.962 to 0.938. Acceptance is still an equilibrium, and `tests/test_nash_search.py` checks that blocking never pays.
 

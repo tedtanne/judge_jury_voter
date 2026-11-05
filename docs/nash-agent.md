@@ -108,7 +108,7 @@ Seeds 1–3 agree. The broker is about 5× more resistant to a Judge who inflate
 
 ## Decisions to confirm
 
-- **A veto reaches only its own area (decided 2026-11-04).** A veto-holder's feasibility check counts only findings on its veto dimensions, so a clean security review no longer blocks a documentation fix. A block removes the optional fixes in that area, and utility adds up across findings, so blocking never pays and acceptance stays an equilibrium. A holder can now show a negative total gain, because its rework cost elsewhere still counts in the Nash product. The cost is about 2 points of utilitarian efficiency in the simulation (96% to 94%).
+- **A veto reaches only its own area (decided 2026-11-04).** A veto-holder's feasibility check counts only findings on its veto dimensions, so a clean security review no longer blocks a documentation fix. A block removes the optional fixes in that area, and utility adds up across findings, so blocking never pays and acceptance stays an equilibrium. A holder can now show a negative total gain, because its rework cost elsewhere still counts in the Nash product. The cost is about 2 points of utilitarian efficiency in the simulation (96% to 94%). On live panels this check rarely binds, because each veto word has one holder and a Judge can tag only its own words. Vetoes act through forced blockers.
 
 - **An unvetoed blocker can be deferred.** This is the purist position: without a credible threat behind it, a blocker is cheap talk. If some disciplines should never defer a blocker, give that archetype a veto on the relevant dimension; don't soften the kernel.
 - **Default budget is 8 cost units per revision**, about four majors. Tune it per panel.
@@ -117,5 +117,6 @@ Seeds 1–3 agree. The broker is about 5× more resistant to a Judge who inflate
 ## Next steps
 
 Broker work still open, from [the full list](architecture.md#next-steps):
+- Fix how findings are valued. Live, equal-severity findings tie and the first id wins, and because every Judge pays the rework cost, a lone non-veto blocker can lose to a lone major.
 - Make the weighted-vote baseline fair on live panels, then run the live comparison. Offline results are simulations only.
 - Decide whether veto-holders may keep choosing their own finding's dimension, and whether `change_aversion` should stay self-reported.
