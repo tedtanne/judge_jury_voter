@@ -56,7 +56,9 @@ SECRET_DIRS = {".git", ".ssh", ".aws", ".gnupg"}
 
 def is_secret(path: Path) -> bool:
     """Is this repo-relative path a file no Judge should read?"""
-    return (bool(SECRET_DIRS.intersection(path.parts))
+    # Lowercased because macOS and Windows treat .GIT and .git as the same folder.
+    parts = {part.lower() for part in path.parts}
+    return (bool(SECRET_DIRS & parts)
             or any(fnmatch(path.name.lower(), name) for name in SECRET_NAMES))
 
 

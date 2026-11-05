@@ -100,12 +100,12 @@ Several controls keep the swarm useful and bounded. **Budgets**: every run carri
 - **The broker evaluation** (`jjv/eval_broker.py`). In an offline simulation of 300 synthetic panels, a single overconfident Judge displaced 4% of the broker's chosen fixes against 19% under weighted voting, and fewer Judges were shut out (0.06 vs 0.13 on average). The cost was 94% vs 99% of the maximum total value addressed. It also has a live-comparison hook for real runs.
 - **The orchestrator** (`jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py`). It runs review and generate modes on the Claude Agent SDK, one isolated `query()` per Judge, with Nash_Agent in the Jury phase, `endorses` and `change_aversion` in the verdict, reputation saved across runs, and `live_run_fn` connecting `run_live_comparison` to the generate loop.
 - **The Voter** (`jjv/voter.py`) and the verdict contract (`jjv/verdicts.py`). The Voter is a deterministic tally; no synthesis agent yet.
-- **135 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
+- **152 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
 
 **Orchestrator decisions worth knowing:**
 - Nash_Agent is not a player. It holds no stake, so its own findings reach the Voter but are not bargained over, and they never enter a generate-loop fix list.
 - More than half the panel must report, or the run fails with no decision. A veto-holder that never reported blocks approval.
-- Judges get read-only tools only when a run names a repository, and a `PreToolUse` hook confines those tools to it, blocks secret files by name, and denies if its own check fails. A `Grep` over a directory skips gitignored files, but a secret that git does not ignore can still be searched. User settings, memory and MCP servers are kept out of every Judge.
+- Judges get read-only tools only when a run names a repository, and a `PreToolUse` hook confines those tools to it, blocks secret files by name, and denies if its own check fails. A `Grep` over a directory skips gitignored files, but a secret that git does not ignore can still be searched, and `Glob` can list the names of secret files, though not their contents. User settings, memory and MCP servers are kept out of every Judge.
 - A Jury round cannot remove a veto blocker or an endorsed finding. `carry_forward` restores them in code and records it in the round's `restored` list, because Judges revise concurrently and read text quoted from the subject.
 - The spending limit is checked between calls, so a run can slightly exceed it. A timed-out call is charged its full cap, because its real spend is unknown.
 - Near-duplicate findings are not merged by code. Judges are told to endorse rather than repeat in the Jury round, so skipping the Jury leaves duplicates in the list.
@@ -126,6 +126,10 @@ The Nash Table reviewed the orchestrator merge with Opus and Sonnet, repo access
 - **Severity can invert.** Every Judge pays the rework cost of a fix, so with four Judges a lone major is chosen and a lone non-veto blocker is dropped.
 - **The scoped veto check rarely binds.** Each veto word has one holder, and a Judge can tag only its own words, so a holder's area holds only its own findings. Vetoes act through forced blockers. The equilibrium claim is true, but it says little about live panels.
 - **Asking Judges to endorse rather than repeat barely removes duplicates.** Findings went from 60 to 58, with 18 restored by `carry_forward`.
+
+## First planted-bug test (2026-11-04)
+
+One reviewer and a five-Judge panel reviewed four small samples with two planted bugs each, plus one clean sample, all on Haiku. Both found 8 of 8 bugs. The panel cost about 11 times as much ($0.16 against $0.014), put 7 of 8 on its fix list, and raised 18 findings on the clean sample against 5. The bugs were easy and the sample small, so this says nothing about subtle bugs. A benchmark of subtle bugs on the full models should decide whether the panel earns its cost.
 
 ## Next steps
 

@@ -6,11 +6,11 @@ import re
 
 import pytest
 
-from jjv import orchestrator
+from jjv import cli, orchestrator
 from jjv.backend import BackendError, Reply
 from jjv.eval_broker import run_live_comparison
 from jjv.orchestrator import Config, Orchestrator, convene, live_run_fn
-from jjv.registry import PRESET_PANELS, get
+from jjv.registry import ALL_ARCHETYPES, PRESET_PANELS, get
 
 
 def reply_for(archetype_id, score=4, rec="approve", findings=()):
@@ -206,7 +206,7 @@ def test_an_unexpected_exception_is_one_judges_failure_not_the_runs():
             raise RuntimeError("surprise")
         return reply_for(aid)
     run = review(Fake(script), PHYSICS)
-    assert run["status"] == "done" and run["failures"][0]["error"] == "surprise"
+    assert run["status"] == "done" and "surprise" in run["failures"][0]["error"]
 
 
 def test_a_call_that_hit_its_budget_is_not_retried_and_its_spend_is_counted():
@@ -257,6 +257,75 @@ def test_digest_fence_is_fresh_and_settlement_sits_outside_it():
     fence = re.search(r"</(digest-\w+)>", text).group(1)
     assert text.index(f"</{fence}>") < text.index("NASH_AGENT SETTLEMENT PROPOSAL")
     assert fence not in fake.prompts("jury")["thermodynamicist"]
+
+
+@pytest.mark.parametrize("content", ["{broken", "[1, 2]", '{"x": 3}', '{"x": {"rounds": "a"}}'])
+def test_a_damaged_reputation_file_cannot_kill_a_paid_run(tmp_path, content):
+    path = tmp_path / "reputation.json"
+    path.write_text(content)
+    run = review(Fake(), PHYSICS, store=str(tmp_path))
+    assert run["status"] == "done"
+    assert path.read_text() == content          # kept for a person to look at
+    assert any("reputation not updated" in e.get("text", "") for e in run["events"])
+
+
+def test_an_unwritable_store_is_refused_before_any_spending(tmp_path):
+    (tmp_path / "file").write_text("x")
+    with pytest.raises(ValueError, match="cannot write"):
+        Orchestrator(Fake(), Config(store=str(tmp_path / "file" / "runs")))
+
+
+def test_a_store_lost_mid_run_keeps_the_result(tmp_path):
+    store = tmp_path / "runs"
+    fake = Fake()
+    orch = Orchestrator(fake, Config(store=str(store)))
+    store.rmdir()
+    (tmp_path / "runs").write_text("now a file")
+    run = asyncio.run(orch.review("s", PHYSICS))
+    assert run["status"] == "done" and run["result"] and run["save_error"]
+
+
+def test_an_unexpected_drafter_error_fails_the_run_cleanly():
+    class Broken(Fake):
+        async def ask(self, request):
+            raise RuntimeError("bare SDK error")
+
+    run = generate(Broken(), DOCS)
+    assert run["status"] == "failed" and "bare SDK error" in run["error"]
+
+
+@pytest.mark.parametrize("subject", ["", "   ", "\n\t"])
+def test_a_blank_subject_is_refused_before_any_spending(subject):
+    fake = Fake()
+    with pytest.raises(ValueError, match="blank"):
+        asyncio.run(Orchestrator(fake).review(subject, PHYSICS))
+    assert fake.requests == []
+
+
+def test_a_repeated_judge_is_refused_before_any_spending():
+    fake = Fake()
+    panel = convene(ids=["staff_engineer", "staff_engineer", "product_lead"])
+    with pytest.raises(ValueError, match="twice"):
+        asyncio.run(Orchestrator(fake).review("s", panel))
+    assert fake.requests == []
+
+
+def test_a_very_large_panel_keeps_every_finding_distinct():
+    judges = [a for a in ALL_ARCHETYPES if a["role"] != "generator"]
+    run = review(Fake(lambda k, aid, r: reply_for(aid, findings=[finding(aid)])), judges)
+    ids = [f["id"] for v in run["rounds"][0]["jury"] for f in v["findings"]]
+    assert len(ids) == len(judges) == len({i.lower() for i in ids})
+    assert all(alias.isalpha() and alias.isupper() for alias in run["aliases"].values())
+
+
+def test_cli_explains_a_missing_file_and_a_blank_subject(tmp_path, capsys):
+    assert cli.main(["review", str(tmp_path / "nope.md"), "--panel", "Docs Crit"]) == 2
+    assert "cannot read" in capsys.readouterr().err
+    blank = tmp_path / "blank.md"
+    blank.write_text("  ")
+    assert cli.main(["review", str(blank), "--panel", "Docs Crit",
+                     "--store", str(tmp_path / "runs")]) == 2
+    assert "blank" in capsys.readouterr().err
 
 
 def test_timeouts_count_as_failures():
