@@ -16,14 +16,14 @@ The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs durin
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest -q                                          # 117 unit tests, no API key needed
+pytest -q                                          # 135 unit tests, no API key needed
 python -m jjv.registry > docs/archetypes.md        # regenerate the archetype catalog
 python -m jjv.eval_broker --trials 300 --seed 7    # Nash broker vs weighted vote
 ```
 
 Everything except live runs uses the Python standard library alone. `requirements.txt` only adds the test tooling.
 
-To run a real panel, install the Claude Agent SDK. Live runs call Claude and spend money, up to `--max-usd` (default $5, a soft limit checked between calls). Run records go to `~/.jjv/runs`, outside any repo, because they name who is behind each anonymous Judge and Judges can read the repo they review. A store inside `--repo` is refused.
+To run a real panel, install the Claude Agent SDK. Live runs call Claude and spend money, up to `--max-usd` (default $5, a soft limit checked between calls). Run records go to `~/.jjv/runs`, outside any repo, because they name who is behind each anonymous Judge and Judges can read the repo they review. Keep secrets gitignored too: Judges cannot read files named like secrets, but a `Grep` can search one that git does not ignore. A store inside `--repo` is refused.
 
 ```bash
 pip install -r requirements-live.txt
@@ -44,19 +44,18 @@ python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 | Orchestrator | Runs SELECT, JUDGE, JURY, VOTE and the generate loop in fixed order, with retries, quorum, spending limit, saved run records and reputation | `jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py` |
 | Voter | Deterministic tally: consensus score, decision by veto policy, ranked findings, dissents | `jjv/voter.py`, `jjv/verdicts.py` |
 | Evaluation | Nash broker vs weighted voting: offline simulation plus a live-comparison hook | `jjv/eval_broker.py` |
-| Tests and CI | 117 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
+| Tests and CI | 135 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
 | Design docs | The full swarm architecture and roadmap, the broker spec, the domain-agent library map, and the catalog | `docs/` |
 
 **Status.** This repository holds the full archetype registry (46 archetypes, 19 presets, every preset member defined), the negotiation layer and its evaluation, the orchestrator, the Voter, and a CLI. Still to come: the FastAPI backend and web UI, and the live broker comparison on real subjects.
 
 **Next steps**, in recommended order (details in [`docs/architecture.md`](docs/architecture.md#next-steps)):
-1. Close the remaining trust gaps in the file guard and the settlement text.
-2. Fix how the broker values findings. Live fix lists currently follow list order among equal-severity findings.
-3. Show Judges the brief in generate mode, and carry findings across rounds.
-4. Make the weighted-vote baseline fair on live panels, then run the live broker comparison.
-5. Decide the open incentive questions in the Voter and the broker.
-6. Add an MCP server, so MCP clients can call the panels: free read-only tools first, then capped `review` and `generate`.
-7. Build the web interface.
+1. Fix how the broker values findings. Live fix lists currently follow list order among equal-severity findings.
+2. Show Judges the brief in generate mode, and carry findings across rounds.
+3. Make the weighted-vote baseline fair on live panels, then run the live broker comparison.
+4. Decide the open incentive questions in the Voter and the broker.
+5. Add an MCP server, so MCP clients can call the panels: free read-only tools first, then capped `review` and `generate`.
+6. Build the web interface.
 
 Design rationale is in [`docs/architecture.md`](docs/architecture.md). The broker spec is in [`docs/nash-agent.md`](docs/nash-agent.md), the domain archetypes are in [`docs/domain-agents.md`](docs/domain-agents.md), and every archetype and preset is listed in [`docs/archetypes.md`](docs/archetypes.md).
 

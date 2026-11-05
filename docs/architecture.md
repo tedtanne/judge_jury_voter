@@ -100,12 +100,12 @@ Several controls keep the swarm useful and bounded. **Budgets**: every run carri
 - **The broker evaluation** (`jjv/eval_broker.py`). In an offline simulation of 300 synthetic panels, a single overconfident Judge displaced 4% of the broker's chosen fixes against 19% under weighted voting, and fewer Judges were shut out (0.06 vs 0.13 on average). The cost was 94% vs 99% of the maximum total value addressed. It also has a live-comparison hook for real runs.
 - **The orchestrator** (`jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py`). It runs review and generate modes on the Claude Agent SDK, one isolated `query()` per Judge, with Nash_Agent in the Jury phase, `endorses` and `change_aversion` in the verdict, reputation saved across runs, and `live_run_fn` connecting `run_live_comparison` to the generate loop.
 - **The Voter** (`jjv/voter.py`) and the verdict contract (`jjv/verdicts.py`). The Voter is a deterministic tally; no synthesis agent yet.
-- **117 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
+- **135 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
 
 **Orchestrator decisions worth knowing:**
 - Nash_Agent is not a player. It holds no stake, so its own findings reach the Voter but are not bargained over, and they never enter a generate-loop fix list.
 - More than half the panel must report, or the run fails with no decision. A veto-holder that never reported blocks approval.
-- Judges get read-only tools only when a run names a repository, and a `PreToolUse` hook confines those tools to it. User settings, memory and MCP servers are kept out of every Judge.
+- Judges get read-only tools only when a run names a repository, and a `PreToolUse` hook confines those tools to it, blocks secret files by name, and denies if its own check fails. A `Grep` over a directory skips gitignored files, but a secret that git does not ignore can still be searched. User settings, memory and MCP servers are kept out of every Judge.
 - A Jury round cannot remove a veto blocker or an endorsed finding. `carry_forward` restores them in code and records it in the round's `restored` list, because Judges revise concurrently and read text quoted from the subject.
 - The spending limit is checked between calls, so a run can slightly exceed it. A timed-out call is charged its full cap, because its real spend is unknown.
 - Near-duplicate findings are not merged by code. Judges are told to endorse rather than repeat in the Jury round, so skipping the Jury leaves duplicates in the list.
@@ -131,22 +131,21 @@ The Nash Table reviewed the orchestrator merge with Opus and Sonnet, repo access
 
 In recommended order, as of 2026-11-04. Each step makes the next one more trustworthy.
 
-1. **Close the remaining trust gaps.** The file guard must deny when its check fails, secret files inside the repo must be blocked, and finding titles must not be able to forge lines in the settlement.
-2. **Fix how the broker values findings.** Live fix lists are not yet reliable; see [the first full review](#first-full-review-2026-11-04). This changes the kernel's scoring, so the published evaluation must be rerun.
-3. **Show Judges the brief in generate mode.** Judges and the blind panel see only the draft, so a polished draft that misses the brief can still score well.
-4. **Carry findings across generate rounds.** Deferred findings are "on record" only in the run file. The next round starts fresh, and nothing checks that a chosen fix was made.
-5. **Make the weighted-vote baseline fair on live panels.** Live finding ids are unique per Judge, so votes never add up across Judges as they do in the simulation. Fix this before step 6 or the comparison is not like for like. Matching equivalent findings is the hard part.
-6. **Run the live comparison (Phase 5b).** `live_run_fn` is ready and tested but has no CLI command yet, and it has never run on real subjects. It is the test that decides whether the broker earns its roughly 5% cost in total value addressed.
-7. **Decide the open incentive questions.** The panel raised these, none resolved:
+1. **Fix how the broker values findings.** Live fix lists are not yet reliable; see [the first full review](#first-full-review-2026-11-04). This changes the kernel's scoring, so the published evaluation must be rerun.
+2. **Show Judges the brief in generate mode.** Judges and the blind panel see only the draft, so a polished draft that misses the brief can still score well.
+3. **Carry findings across generate rounds.** Deferred findings are "on record" only in the run file. The next round starts fresh, and nothing checks that a chosen fix was made.
+4. **Make the weighted-vote baseline fair on live panels.** Live finding ids are unique per Judge, so votes never add up across Judges as they do in the simulation. Fix this before step 5 or the comparison is not like for like. Matching equivalent findings is the hard part.
+5. **Run the live comparison (Phase 5b).** `live_run_fn` is ready and tested but has no CLI command yet, and it has never run on real subjects. It is the test that decides whether the broker earns its roughly 5% cost in total value addressed.
+6. **Decide the open incentive questions.** The panel raised these, none resolved:
    - One low-scoring Judge can block approval without holding a veto, because the consensus is a plain weighted mean.
    - A veto-holder chooses its own finding's dimension, so it can label any complaint as its veto area.
    - `change_aversion` is self-reported, and a Judge sees the proposal before setting it.
    - The settlement Judges see is a proposal. The binding one is solved afterwards, and no Judge ratifies it.
    - Reputation changes later settlements, but a run record does not save the history it used.
-8. **Add an MCP server.** It would let Claude Code, Claude Desktop and other MCP clients call the panels directly, as a usable interface well before the web UI. Build it after the merge in step 1, in two stages:
+7. **Add an MCP server.** It would let Claude Code, Claude Desktop and other MCP clients call the panels directly, as a usable interface well before the web UI. Build it in two stages:
    - **Free tools first:** `list_panels`, `list_archetypes`, `get_run`, and `settle`, which re-runs the Voter and Nash on a saved run at a different budget with no model calls.
    - **Paid tools second:** `review` and `generate`, off unless enabled. An AI would be choosing when to spend, so they need a low default limit and a hard maximum the caller cannot raise. Runs take minutes, so they should return a run id at once and report through `get_run`. Repositories must come from a configured allow-list, not from the caller.
-9. **Build the web interface (Phase 3).** Do this after the steps above, so the interface sits on a loop whose results can be trusted.
+8. **Build the web interface (Phase 3).** Do this after the steps above, so the interface sits on a loop whose results can be trusted.
 
 ## Build roadmap
 

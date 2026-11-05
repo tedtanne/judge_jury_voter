@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import tempfile
 from dataclasses import dataclass, field
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Protocol
 
@@ -48,35 +49,62 @@ class Backend(Protocol):
     async def ask(self, request: Request) -> Reply: ...
 
 
-def inside(root: str, tool_input: dict) -> bool:
-    """Does this Read, Grep or Glob call stay inside ``root``?"""
+SECRET_NAMES = (".env", ".env.*", "*.pem", "*.p12", "*.pfx", "*.key", "id_rsa*", "id_ed25519*",
+                ".netrc", ".npmrc", ".pypirc")
+SECRET_DIRS = {".git", ".ssh", ".aws", ".gnupg"}
+
+
+def is_secret(path: Path) -> bool:
+    """Is this repo-relative path a file no Judge should read?"""
+    return (bool(SECRET_DIRS.intersection(path.parts))
+            or any(fnmatch(path.name.lower(), name) for name in SECRET_NAMES))
+
+
+def allowed(root: str, tool: str, tool_input: dict) -> bool:
+    """May this Read, Grep or Glob call run? It must stay in ``root`` and off secret files.
+
+    Grep's ``pattern`` is a regex, not a path, so only Glob's is checked. A Grep over a
+    directory skips gitignored files, but a secret that git does not ignore is searchable.
+    """
     base = Path(root).resolve()
     for key in ("file_path", "path"):
-        if tool_input.get(key):
-            target = Path(tool_input[key]).expanduser()
-            target = (target if target.is_absolute() else base / target).resolve()
-            if not target.is_relative_to(base):
-                return False
-    for key in ("pattern", "glob"):
-        value = str(tool_input.get(key) or "")
-        if value.startswith(("/", "~")) or ".." in Path(value).parts:
+        value = tool_input.get(key)
+        if value in (None, ""):
+            continue
+        if not isinstance(value, str):
+            return False
+        target = Path(value).expanduser()
+        target = (target if target.is_absolute() else base / target).resolve()
+        if not target.is_relative_to(base) or is_secret(target.relative_to(base)):
+            return False
+    patterns = [tool_input.get("glob")] + ([] if tool == "Grep" else [tool_input.get("pattern")])
+    for value in patterns:
+        if value is None:
+            continue
+        # A substring check, because brace expansion hides ".." from path parsing.
+        if not isinstance(value, str) or value.startswith(("/", "~")) or ".." in value:
             return False
     return True
 
 
 def repo_guard(root: str):
-    """A PreToolUse hook that denies file access outside ``root``.
+    """A PreToolUse hook that denies file access outside ``root`` and to secret files.
 
     A bare ``Read`` in allowed_tools approves every path on the machine, and the subject is
-    untrusted, so without this a hostile document could steer a Judge to ~/.ssh.
+    untrusted, so without this a hostile document could steer a Judge to ~/.ssh. Any failure
+    in the check is a denial: the CLI treats a crashed hook as no decision, and runs the tool.
     """
     async def guard(hook_input, tool_use_id, context):
-        if inside(root, hook_input.get("tool_input") or {}):
+        try:
+            ok = allowed(root, hook_input.get("tool_name", ""), hook_input.get("tool_input") or {})
+        except Exception:
+            ok = False
+        if ok:
             return {}
         return {"hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
-            "permissionDecisionReason": f"Only files inside {root} may be read.",
+            "permissionDecisionReason": f"Only non-secret files inside {root} may be read.",
         }}
     return guard
 
@@ -119,7 +147,8 @@ class ClaudeBackend:
             output_format=({"type": "json_schema", "schema": request.schema}
                            if request.schema else None),
             hooks=({"PreToolUse": [HookMatcher(matcher="Read|Grep|Glob",
-                                               hooks=[repo_guard(request.cwd)])]}
+                                               hooks=[repo_guard(request.cwd)],
+                                               on_failure="block")]}
                    if request.tools else None),
         )
         final = None
