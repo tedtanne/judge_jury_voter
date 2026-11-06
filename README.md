@@ -16,7 +16,7 @@ The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs durin
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest -q                                          # 197 unit tests, no API key needed
+pytest -q                                          # 207 unit tests, no API key needed
 python -m jjv.registry > docs/archetypes.md        # regenerate the archetype catalog
 python -m jjv.eval_broker --trials 300 --seed 7    # Nash broker vs weighted vote
 ```
@@ -37,17 +37,18 @@ python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 | Piece | What it does | Where |
 |---|---|---|
 | Default archetypes | Six generic jurors that auto-convene by discipline, including the Drafter (the Generator) | `jjv/archetypes.py` |
-| Legend roster | 31 trait-profile and mission archetypes, plus the ten original preset rooms; `PRESET_PANELS` merges all 19 presets | `jjv/legends.py` |
+| Legend roster | 31 trait-profile and mission archetypes, plus the ten original preset rooms; `PRESET_PANELS` merges all 25 presets | `jjv/legends.py` |
 | Domain archetypes | Eight role archetypes with rubrics, veto dimensions, presets, and the papers their standards come from | `jjv/domain_roles.py` |
+| Thinkers and gap roles | Seven thinking methods and five roles for areas nobody else covered, with six presets. None holds a veto, and none has run live yet | `jjv/thinkers.py` |
 | Nash_Agent | Archetype record, plus the deterministic bargaining kernel that brokers the Jury round | `jjv/nash.py` |
-| Registry | One lookup for all 46 archetypes and 19 presets, the veto-dimension vocabulary, `validate()`, and the generated catalog | `jjv/registry.py`, `docs/archetypes.md` |
+| Registry | One lookup for all 58 archetypes and 25 presets, the veto-dimension vocabulary, `validate()`, and the generated catalog | `jjv/registry.py`, `docs/archetypes.md` |
 | Orchestrator | Runs SELECT, JUDGE, JURY, VOTE and the generate loop in fixed order, with retries, quorum, spending limit, saved run records and reputation | `jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py` |
 | Voter | Deterministic tally: consensus score, decision by veto policy, ranked findings, dissents | `jjv/voter.py`, `jjv/verdicts.py` |
 | Evaluation | Nash broker vs weighted voting: offline simulation plus a live-comparison hook | `jjv/eval_broker.py` |
-| Tests and CI | 197 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
+| Tests and CI | 207 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
 | Design docs | The full swarm architecture and roadmap, the broker spec, the domain-agent library map, and the catalog | `docs/` |
 
-**Status.** This repository holds the full archetype registry (46 archetypes, 19 presets, every preset member defined), the negotiation layer and its evaluation, the orchestrator, the Voter, and a CLI. Still to come: the FastAPI backend and web UI, and the live broker comparison on real subjects.
+**Status.** This repository holds the full archetype registry (58 archetypes, 25 presets, every preset member defined), the negotiation layer and its evaluation, the orchestrator, the Voter, and a CLI. Still to come: the FastAPI backend and web UI, and the live broker comparison on real subjects.
 
 **Next steps**, in recommended order (details in [`docs/architecture.md`](docs/architecture.md#next-steps)):
 1. Confirm finding links on the full models. So far they have been checked on two cheap-model runs.
@@ -55,7 +56,7 @@ python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 3. Make the weighted-vote baseline fair on live panels, then run the live broker comparison.
 4. Decide the open incentive questions in the Voter and the broker.
 5. Decide what Judges are held to when there is no single truth to check a finding against, which also sets the basis for adding or removing agents.
-6. Try a Thinkers panel on bold ideas: the Assumption Tester, Paradox Hunter, Back-of-Envelope Estimator and Shadow Reader.
+6. Test the Thinkers and gap roles on real subjects, starting with the Thinkers Panel on a bold idea. They are built but have never run live.
 7. Add an MCP server, so MCP clients can call the panels: free read-only tools first, then capped `review` and `generate`.
 8. Build the web interface.
 
@@ -63,18 +64,20 @@ Design rationale is in [`docs/architecture.md`](docs/architecture.md). The broke
 
 ## The archetypes
 
-An archetype is one reviewer lens: a persona, a scoring rubric, a weight, and sometimes a veto. There are 46, in four groups:
+An archetype is one reviewer lens: a persona, a scoring rubric, a weight, and sometimes a veto. There are 58, in six groups:
 
 | Group | Count | Who they are | Examples |
 |---|---|---|---|
 | Defaults | 6 | Generic reviewers that convene automatically by discipline. The Drafter writes drafts and never votes. | Staff Engineer, Security Reviewer, Technical Writer |
 | Legends | 31 | Trait profiles across engineering (9), founders (9), design (5), investors (3), mission roles (3), plus The Simplifier and The Clarity Editor. They join through presets. | The Reliability Engineer, The Reductionist, The Value Investor |
+| Thinkers | 7 | Methods of reasoning inspired by historical thinkers, one record per method, not per person. They join through presets. | The Paradox Hunter, The Back-of-Envelope Estimator, The Shadow Reader |
 | Domain roles | 8 | Specialists modeled on a discipline, each with standards drawn from published papers. | The Cryptographer, The Evidence Auditor, The Thermodynamicist |
+| Gap roles | 5 | Roles for areas no other juror covered. | The Assumption Tester, The Regulatory Reader, The Model Evaluator |
 | Broker | 1 | Nash_Agent, which judges a subject and also brokers the Jury round. It holds no veto. | Nash_Agent |
 
 Twelve archetypes hold a veto, each on one area. For example, the Security Reviewer holds `security` and The Thermodynamicist holds `physical-correctness`.
 
-A **preset** is a ready-made panel of 3–6 archetypes, and there are 19. For example, *Physics of Compute* convenes The Thermodynamicist, The Metering Economist, The Silicon Compiler Architect, The Evidence Auditor and Nash_Agent.
+A **preset** is a ready-made panel of 3–6 archetypes, and there are 25. For example, *Physics of Compute* convenes The Thermodynamicist, The Metering Economist, The Silicon Compiler Architect, The Evidence Auditor and Nash_Agent.
 
 "Legend" archetypes are trait profiles: lenses *inspired by* how notable people are publicly known to work. They are not impersonations. They never speak as those people, and no endorsement or affiliation is implied. Role archetypes, such as The Cryptographer and Nash_Agent, are modeled on a discipline, not on any person.
 

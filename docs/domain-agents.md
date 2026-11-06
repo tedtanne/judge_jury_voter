@@ -3,7 +3,7 @@ title: Domain agents and the research library
 description: How the papers in the Judge_Jury_Voter project map to subject clusters, which archetype covers each cluster, the eight domain role archetypes added in October 2026, and library housekeeping. Read before adding papers or archetypes.
 status: draft
 owner: Ted
-updated: 2026-10-30
+updated: 2026-11-06
 ---
 
 # Domain agents and the research library
@@ -85,6 +85,43 @@ The kernel is unchanged; only the persona and its grounding changed.
 | Physics of Compute | Thermodynamicist, Metering Economist, Silicon Compiler Architect, Evidence Auditor, Nash_Agent | Energy, physical limits and pricing of computation; usage-based pricing models |
 
 Every member id resolves in `jjv/registry.py`; the base and legend ids (`security_reviewer`, `attestation_architect`, `systems_integrator`, `staff_engineer`, `product_lead`, `technical_writer`, `simplifier`) are defined in `jjv/archetypes.py` and `jjv/legends.py`.
+
+## Thinkers and gap roles
+
+These twelve archetypes in `jjv/thinkers.py` come from a review of what the roster lacked, not from the library, so they carry no `grounded_in` list. None holds a veto, and none has run live yet.
+
+**Thinkers** are methods of reasoning inspired by historical thinkers. There is one record per method, not per person, because the rubric does the reviewing and the names are only inspiration.
+
+| Archetype | Inspired by | What it does |
+|---|---|---|
+| The Paradox Hunter | Carroll, Gödel, Russell | Takes words literally to expose shifting definitions, contradictions and hidden premises |
+| The Formalizer | Leibniz, Aristotle, Descartes, Euler, Gauss, Lagrange, Riemann, Fermat, Pascal, Turing | Turns vague claims into something calculable, or shows they cannot be |
+| The Back-of-Envelope Estimator | Fermi, Archimedes | Gets the rough numbers first |
+| The Thought Experimenter | Tesla, Einstein, Galileo, Leonardo, Faraday | Runs the whole system in the mind, then varies it |
+| The Gap Finder | Mendeleev, Darwin, Maxwell, Curie, Hubble | Finds what a pattern says should be there and is not |
+| The Shadow Reader | Jung, Freud, Nietzsche, Dostoevsky | Reads for what is avoided. Its findings are judgment only |
+| The Human Consequences Reader | Shakespeare, Tolstoy, Cervantes, Goethe, Pushkin | Asks how real people will behave |
+
+**Gap roles** cover areas no other juror covered.
+
+| Archetype | What it judges |
+|---|---|
+| The Assumption Tester | Sorts objections into impossible, unproven or disliked, then lists what must be true and the cheapest test for each |
+| The Regulatory Reader | Which laws and rules may apply, and what needs a lawyer. It does not give legal advice |
+| The Model Evaluator | AI systems: eval validity, test data leaks, prompt injection, drift |
+| The Distribution Realist | How a product reaches buyers, and what winning a customer costs |
+| The Developmental Editor | Argument, structure, voice and fit for the reader |
+
+| Preset | Members | Use for |
+|---|---|---|
+| Thinkers Panel | Assumption Tester, Paradox Hunter, Back-of-Envelope Estimator, Shadow Reader, Nash_Agent | Bold or unprecedented ideas |
+| Thought Lab | Formalizer, Thought Experimenter, Gap Finder, Human Consequences Reader, Nash_Agent | Theories, designs and plans |
+| Regulated Launch | Regulatory Reader, Privacy Adversary, Security Reviewer, Evidence Auditor, Nash_Agent | Products in regulated areas |
+| AI System Review | Model Evaluator, Security Reviewer, Evidence Auditor, Privacy Adversary, Reliability Engineer, Nash_Agent | Systems built on AI models |
+| Go-to-Market | Distribution Realist, Metering Economist, Customer-Backwards Operator, Value Investor, Assumption Tester, Nash_Agent | Business models and launch plans |
+| Writers' Room | Developmental Editor, Clarity Editor, Technical Writer, Human Consequences Reader | Essays, proposals and long documents |
+
+Writers' Room has no Nash_Agent because its incentive rubric does not fit judging prose, so that panel uses a weighted vote.
 
 ## Library housekeeping
 
