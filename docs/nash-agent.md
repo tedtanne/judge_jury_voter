@@ -99,14 +99,15 @@ Seeds 1–3 agree. In these simulated panels the broker is about 6–16× more r
 ## How it is wired into the swarm
 
 - **Registry.** `NASH_AGENT` and its presets are in `jjv/registry.py`. It is `library=True`, so it joins only through a panel.
-- **Jury phase.** When a panel includes an archetype with `role == "broker"`, the orchestrator solves the settlement and shows it to each Judge after the fenced digest. It solves under anonymous aliases, so the printed math names no archetype.
+- **Jury phase.** On every panel, unless `--aggregator weighted_vote` is set, the orchestrator solves the settlement and shows it to each Judge after the fenced digest. It solves under anonymous aliases, so the printed math names no archetype.
 - **Vote phase.** The broker solves again on the final verdicts to pick the fix list. Both settlements are stored with the run.
 - **Verdict fields.** `endorses` and `change_aversion` are collected in the Jury round. Without a Jury, `change_aversion` falls back to 0.25.
 - **Not a player.** Nash_Agent's own findings reach the Voter but are not bargained over, unless a Judge links its finding to one of them.
 - **Linked findings.** In the Jury round a Judge can mark its own finding `same_as` another Judge's. `link_findings` gives them one id, so agreement counts and the issue costs budget once. Judges make the link; the broker changes nothing. A joined group stays forced if any member is a credible veto.
 - **Rework cost.** A fix is done once, so each Judge bears a 1/n share of its cost. Charging everyone the whole cost let a lone blocker lose to a lone major.
 - **The Voter is separate.** The broker sets priorities. The Voter still makes the decision, and its veto policy stays authoritative.
-- **No broker on the panel.** The run uses weighted vote, and says so in the round's `aggregator` field.
+- **Nash_Agent is optional.** The kernel runs without it. Putting Nash_Agent on a panel only adds a Judge who scores incentives. The round's `aggregator` field records which method ran.
+- **Negotiation rounds.** With `deliberation_rounds` above 1, each Jury round asks Judges for a `fix_list` and a `message`, which the others read inside the fence. The settlement is re-solved and shown each round as a starting point. If every bargaining Judge names the same list, it stands and the talks end early. The list is refused if it leaves out a credible veto, exceeds the budget, names an unknown finding, or a Judge failed to reply. After the last round the formula decides. `settled_by` records which happened, and the formula's own answer is always stored. Nash_Agent can talk, but its position does not count, since it holds no stake. Veto blockers and links are protected across every round. The default is one round, which behaves as before.
 
 ## Decisions to confirm
 
