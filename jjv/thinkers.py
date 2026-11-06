@@ -347,7 +347,6 @@ Suggest what to move, cut or expand, and do not rewrite it in your own voice.
     ),
 ]
 
-# Writers' Room has no Nash_Agent: its incentive rubric does not fit judging prose.
 THINKER_PRESETS = {
     "Thinkers Panel": [
         "assumption_tester", "paradox_hunter", "envelope_estimator", "shadow_reader", "nash_agent",
@@ -370,6 +369,6 @@ THINKER_PRESETS = {
     ],
     "Writers' Room": [
         "developmental_editor", "clarity_editor", "technical_writer",
-        "human_consequences_reader",
+        "human_consequences_reader", "nash_agent",
     ],
 }

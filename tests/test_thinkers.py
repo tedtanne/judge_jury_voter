@@ -60,9 +60,8 @@ def test_new_presets_convene(name):
     assert 3 <= len(judges) <= 6
 
 
-def test_only_writers_room_goes_without_the_broker():
-    without = {n for n, m in THINKER_PRESETS.items() if "nash_agent" not in m}
-    assert without == {"Writers' Room"}
+def test_every_new_preset_bargains():
+    assert all("nash_agent" in m for m in THINKER_PRESETS.values())
 
 
 def test_every_new_archetype_sits_on_a_preset():

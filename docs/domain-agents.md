@@ -119,9 +119,9 @@ These twelve archetypes in `jjv/thinkers.py` come from a review of what the rost
 | Regulated Launch | Regulatory Reader, Privacy Adversary, Security Reviewer, Evidence Auditor, Nash_Agent | Products in regulated areas |
 | AI System Review | Model Evaluator, Security Reviewer, Evidence Auditor, Privacy Adversary, Reliability Engineer, Nash_Agent | Systems built on AI models |
 | Go-to-Market | Distribution Realist, Metering Economist, Customer-Backwards Operator, Value Investor, Assumption Tester, Nash_Agent | Business models and launch plans |
-| Writers' Room | Developmental Editor, Clarity Editor, Technical Writer, Human Consequences Reader | Essays, proposals and long documents |
+| Writers' Room | Developmental Editor, Clarity Editor, Technical Writer, Human Consequences Reader, Nash_Agent | Essays, proposals and long documents |
 
-Writers' Room has no Nash_Agent because its incentive rubric does not fit judging prose, so that panel uses a weighted vote.
+Every one of these presets includes Nash_Agent, so all six settle by bargaining. People bargain over judgment calls too, so this does not depend on findings being calculable.
 
 ## Library housekeeping
 

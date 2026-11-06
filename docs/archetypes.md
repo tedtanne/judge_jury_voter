@@ -172,4 +172,4 @@ Legends are trait profiles *inspired by* how notable people are publicly known t
 | Regulated Launch | The Regulatory Reader, The Privacy Adversary, Security Reviewer, The Evidence Auditor, Nash_Agent |
 | AI System Review | The Model Evaluator, Security Reviewer, The Evidence Auditor, The Privacy Adversary, The Reliability Engineer, Nash_Agent |
 | Go-to-Market | The Distribution Realist, The Metering Economist, The Customer-Backwards Operator, The Value Investor, The Assumption Tester, Nash_Agent |
-| Writers' Room | The Developmental Editor, The Clarity Editor, Technical Writer, The Human Consequences Reader |
+| Writers' Room | The Developmental Editor, The Clarity Editor, Technical Writer, The Human Consequences Reader, Nash_Agent |
