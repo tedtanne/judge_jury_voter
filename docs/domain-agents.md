@@ -98,12 +98,6 @@ Every member id resolves in `jjv/registry.py`; the base and legend ids (`securit
   - *Computational lambda-calculus and monads* (two copies)
   - *Feeling the Future* (two versions)
   - *Poisoning Language Models During Instruction Tuning* (from the first upload)
-- **Not research material:**
-  - LaTeX guides (three)
-  - the fingerstyle guitar lesson
-  - a saved dermavir.com page
-  - a Python-libraries listicle
-- **Personal and business records:** consulting agreements and SOWs, the LLC operating agreement, an ACH authorization, AR aging reports, a release form, and a résumé. These are searchable by any agent given library access. Consider moving them out before Phase 5c gives jurors a search tool.
 
 ## Next steps
 
