@@ -54,8 +54,9 @@ python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 2. Show Judges the brief in generate mode, and carry findings across rounds.
 3. Make the weighted-vote baseline fair on live panels, then run the live broker comparison.
 4. Decide the open incentive questions in the Voter and the broker.
-5. Add an MCP server, so MCP clients can call the panels: free read-only tools first, then capped `review` and `generate`.
-6. Build the web interface.
+5. Decide what Judges are held to when there is no single truth to check a finding against, which also sets the basis for adding or removing agents.
+6. Add an MCP server, so MCP clients can call the panels: free read-only tools first, then capped `review` and `generate`.
+7. Build the web interface.
 
 Design rationale is in [`docs/architecture.md`](docs/architecture.md). The broker spec is in [`docs/nash-agent.md`](docs/nash-agent.md), the domain archetypes are in [`docs/domain-agents.md`](docs/domain-agents.md), and every archetype and preset is listed in [`docs/archetypes.md`](docs/archetypes.md).
 

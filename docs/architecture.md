@@ -146,10 +146,15 @@ In recommended order, as of 2026-11-04. Each step makes the next one more trustw
    - `change_aversion` is self-reported, and a Judge sees the proposal before setting it.
    - The settlement Judges see is a proposal. The binding one is solved afterwards, and no Judge ratifies it.
    - Reputation changes later settlements, but a run record does not save the history it used.
-7. **Add an MCP server.** It would let Claude Code, Claude Desktop and other MCP clients call the panels directly, as a usable interface well before the web UI. Build it in two stages:
+7. **Decide what Judges are held to.** Often there is no single truth to check a finding against, so settle how to tell whether a Judge or a finding is any good:
+   - **Types of claim:** which findings can be settled by evidence (physics, math, a failing test), which rest on an agreed standard (grammar, style guides), and which are judgment or bets (writing quality, business models, unprecedented ideas)?
+   - **The right standard for each:** what counts as a good finding for each type: a confirmed fact, a correct use of the agreed standard, or a clear statement of what would have to be true?
+   - **New ideas:** how does JJV keep from treating "nobody has done this" as "this can't work", while still catching things that really are impossible?
+   - **Adding agents:** the basis for adding or removing agents follows from these answers. An agent earns its place by doing well against those standards in an area nobody else on the roster covers.
+8. **Add an MCP server.** It would let Claude Code, Claude Desktop and other MCP clients call the panels directly, as a usable interface well before the web UI. Build it in two stages:
    - **Free tools first:** `list_panels`, `list_archetypes`, `get_run`, and `settle`, which re-runs the Voter and Nash on a saved run at a different budget with no model calls.
    - **Paid tools second:** `review` and `generate`, off unless enabled. An AI would be choosing when to spend, so they need a low default limit and a hard maximum the caller cannot raise. Runs take minutes, so they should return a run id at once and report through `get_run`. Repositories must come from a configured allow-list, not from the caller.
-8. **Build the web interface (Phase 3).** Do this after the steps above, so the interface sits on a loop whose results can be trusted.
+9. **Build the web interface (Phase 3).** Do this after the steps above, so the interface sits on a loop whose results can be trusted.
 
 ## Build roadmap
 
