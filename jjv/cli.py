@@ -31,6 +31,8 @@ def parser() -> argparse.ArgumentParser:
     ap.add_argument("--repo", help="let Judges read this directory")
     ap.add_argument("--no-jury", action="store_true", help="skip the deliberation round")
     ap.add_argument("--aggregator", choices=AGGREGATORS, default="nash_broker")
+    ap.add_argument("--deliberation-rounds", type=int, default=1,
+                    help="Jury rounds; above 1, Judges negotiate and cost rises with each round")
     ap.add_argument("--model", help="use this model for every archetype")
     ap.add_argument("--max-usd", type=float, default=5.0, help="spending limit for the run")
     ap.add_argument("--revision-budget", type=float, default=8.0)
@@ -70,6 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     config = Config(jury=not args.no_jury, aggregator=args.aggregator, model=args.model,
                     repo=args.repo, max_usd=args.max_usd, store=args.store,
                     revision_budget=args.revision_budget, max_rounds=args.max_rounds,
+                    deliberation_rounds=args.deliberation_rounds,
                     threshold=args.threshold)
     try:
         orchestrator = Orchestrator(ClaudeBackend(), config, progress)

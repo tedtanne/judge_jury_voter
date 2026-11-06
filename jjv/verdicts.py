@@ -18,7 +18,8 @@ class VerdictError(ValueError):
     """The reply cannot be used as a verdict."""
 
 
-def schema(archetype: dict, *, deliberating: bool = False) -> dict:
+def schema(archetype: dict, *, deliberating: bool = False,
+           negotiating: bool = False) -> dict:
     """JSON schema for one Judge's verdict, with that Judge's own rubric as required keys."""
     dims = [d["name"] for d in archetype["rubric"]]
     vetoes = list(archetype.get("veto_dimensions", []))
@@ -58,6 +59,14 @@ def schema(archetype: dict, *, deliberating: bool = False) -> dict:
             "changed_mind": {"type": "string"},
         }
         required.append("changed_mind")
+    if negotiating:
+        props |= {
+            "fix_list": {"type": "array", "items": {"type": "string"},
+                         "description": "Finding ids you would agree to fix now."},
+            "message": {"type": "string",
+                        "description": "Your argument, concession or offer to the others."},
+        }
+        required.append("fix_list")
     return {"type": "object", "properties": props, "required": required}
 
 
@@ -93,7 +102,8 @@ def normalize(raw: object, archetype: dict, alias: str, *,
     if raw.get("recommendation") not in RECOMMENDATIONS:
         raise VerdictError(f"bad recommendation: {raw.get('recommendation')!r}")
 
-    for name, kind in (("scores", dict), ("findings", list), ("endorses", list)):
+    for name, kind in (("scores", dict), ("findings", list), ("endorses", list),
+                       ("fix_list", list)):
         if raw.get(name) is not None and not isinstance(raw[name], kind):
             raise VerdictError(f"{name} has the wrong type")
 
@@ -156,6 +166,9 @@ def normalize(raw: object, archetype: dict, alias: str, *,
     }
     if isinstance(raw.get("change_aversion"), (int, float)):
         verdict["change_aversion"] = min(1.0, max(0.0, float(raw["change_aversion"])))
+    if raw.get("fix_list") is not None:
+        verdict["fix_list"] = sorted({str(x).upper() for x in raw["fix_list"]})
+        verdict["message"] = str(raw.get("message") or "")
     verdict["overall"] = overall(verdict, archetype)
     return verdict
 
@@ -177,6 +190,8 @@ def carry_forward(first: list[dict], final: list[dict]) -> tuple[list[dict], lis
         for f in old["findings"]:
             veto = f["severity"] == "blocker" and f["dimension"] in old["veto_dimensions"]
             kept = now.get(f["id"])
+            if kept and "same_as" in f and "same_as" not in kept:
+                now[f["id"]] = kept = {**kept, "same_as": f["same_as"]}   # links last all rounds
             if veto and (not kept or (kept["severity"], kept["dimension"])
                          != (f["severity"], f["dimension"])):
                 now[f["id"]] = f
@@ -244,6 +259,10 @@ def digest(verdicts: list[dict], viewer: str, fence: str,
             continue
         out.append(f"Judge {v['alias']}: {v['recommendation']}, overall {v['overall']:g}/5")
         out.append(f"  Rationale: {v['rationale']}")
+        if "fix_list" in v:
+            out.append(f"  Would fix now: {', '.join(v['fix_list']) or 'nothing'}")
+        if v.get("message"):
+            out.append(f"  Says: {v['message']}")
         for f in v["findings"]:
             out.append(f"  - {f['id']} [{f['severity']}] {f['title']} "
                        f"({f['location']}): {f['detail']}")
