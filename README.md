@@ -35,6 +35,19 @@ python -m jjv.cli review --url https://example.com/post --panel "Paper Review"
 python -m jjv.cli review plan.md --panel "Thinkers Panel" --consult claude,openai,xai,gemini
 ```
 
+### Ways to run JJV
+
+The native way needs no harness, no MCP server and no settings file. The others are optional, and only apply when you ask for them.
+
+| Way | How | What you need |
+|---|---|---|
+| **Native** | `python -m jjv.cli review ...` | The Claude Agent SDK, signed in through Claude Code or with `ANTHROPIC_API_KEY` |
+| **Several models first** | Add `--consult claude,openai,xai,gemini` | Native setup, plus provider keys and `~/.jjv/providers.json` |
+| **Judges on a public API** | Add `--judge-provider openai` | Provider key and `~/.jjv/providers.json`. No Claude Code needed |
+| **From an AI client** | `python -m jjv.mcp_server` | Nothing extra for free tools. Paid tools also need `JJV_MCP_PAID=1` and the setup for the backend they use |
+
+`--repo`, which lets Judges read a codebase, works only the native way. Setup for the optional ways is in [`docs/providers.md`](docs/providers.md).
+
 ## What's in this repository
 
 | Piece | What it does | Where |

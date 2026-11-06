@@ -7,7 +7,9 @@ updated: 2026-11-06
 
 # Model providers
 
-JJV assumes nothing about who runs it. Every provider, Claude included, is reached through its public API with your own key. Nothing here has run against a live provider yet; the tests use simulated replies.
+This page is optional. Native JJV needs none of it: `python -m jjv.cli review ...` runs on the Claude Agent SDK, with no settings file or provider keys. See [Ways to run JJV](../README.md#ways-to-run-jjv).
+
+The harness assumes nothing about who runs it. Every provider, Claude included, is reached through its public API with your own key. Nothing here has run against a live provider yet; the tests use simulated replies.
 
 ## Setup
 
