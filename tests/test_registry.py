@@ -18,7 +18,7 @@ def test_registry_is_consistent():
 def test_roster_counts():
     assert len(LEGENDS) == 31
     assert len(DEFAULT_ARCHETYPES) == 6
-    assert len(PRESET_PANELS) == 19
+    assert len(PRESET_PANELS) == 25
     assert len(LEGEND_PRESETS) == 10
 
 
