@@ -22,7 +22,7 @@ from pathlib import Path
 from jjv import voter
 from jjv.backend import ClaudeBackend
 from jjv.fetch import FetchError, fetch_text
-from jjv.harness import consult, load_providers, with_opinions
+from jjv.harness import consult, load_providers, make_backend, with_opinions
 from jjv.orchestrator import AGGREGATORS, Config, Orchestrator, convene
 
 
@@ -44,8 +44,10 @@ def parser() -> argparse.ArgumentParser:
                     "Judges their answers, for example xai,openai,gemini,claude")
     ap.add_argument("--consult-usd", type=float, default=1.0,
                     help="spending limit for the --consult models, on top of --max-usd")
+    ap.add_argument("--judge-provider", help="run the Judges on this provider's public API "
+                    "instead of the local Claude Agent SDK")
     ap.add_argument("--providers-file", default="~/.jjv/providers.json",
-                    help="model names and prices for --consult")
+                    help="model names and prices for --consult and --judge-provider")
     ap.add_argument("--model", help="use this model for every archetype")
     ap.add_argument("--max-usd", type=float, default=5.0, help="spending limit for the run")
     ap.add_argument("--revision-budget", type=float, default=8.0)
@@ -93,6 +95,14 @@ def failure_warning(run: dict) -> str | None:
     return (f"WARNING: {len(failures)} Judge call(s) failed ({', '.join(phases)}). Judges that "
             "failed the Jury kept their first verdict, so this result is less deliberated "
             "than it looks. Raise --max-usd if the errors mention budget.")
+
+
+def judge_backend(args):
+    if not args.judge_provider:
+        return ClaudeBackend()
+    if args.repo:
+        raise ValueError("--repo needs the Claude Agent SDK backend, which guards file tools")
+    return make_backend(load_providers(args.providers_file, [args.judge_provider])[0])
 
 
 def gather_opinions(args, text: str) -> tuple[list, str, dict]:
@@ -146,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
                     deliberation_rounds=args.deliberation_rounds,
                     threshold=args.threshold)
     try:
-        orchestrator = Orchestrator(ClaudeBackend(), config, Progress())
+        orchestrator = Orchestrator(judge_backend(args), config, Progress())
         entry = orchestrator.review if args.mode == "review" else orchestrator.generate
         opinions, labels = [], {}
         if args.consult:

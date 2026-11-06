@@ -2,10 +2,13 @@
 
     providers = load_providers("~/.jjv/providers.json")
     opinions = await consult(subject, providers, max_usd=1.0)
-    review_text = with_opinions(subject, opinions)     # the subject for a normal JJV run
+    review_text, labels = with_opinions(subject, opinions)   # the subject for a JJV run
 
-This is the one layer the CLI, an MCP server and the browser view can all call. The Judges,
-Jury and Voter do not change: a model's answer is more material for them to weigh.
+This is the one layer the CLI, an MCP server and the browser view can all call. It assumes
+nothing about who runs it: every provider, Claude included, is reached through its public
+API with the caller's own key. Any service that speaks the OpenAI chat format can be added
+in the settings file, with no code change. ``make_backend`` returns the same ``ask`` as
+every other backend, so a provider can also power the Judges.
 
 Answers are shuffled and labeled "Model 1", "Model 2", so Judges cannot favor a brand. API
 keys come from the environment only, and never reach a prompt, a record or an error.
@@ -17,27 +20,31 @@ import asyncio
 import json
 import os
 import random
+import re
 import secrets
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
+from urllib.parse import urlparse
 
 from jjv.backend import Backend, BackendError, Reply, Request
 
-# Each of these accepts the OpenAI chat format. Claude goes through ClaudeBackend.
-ENDPOINTS = {
-    "xai": ("https://api.x.ai/v1/chat/completions", "XAI_API_KEY", "max_tokens"),
-    "openai": ("https://api.openai.com/v1/chat/completions", "OPENAI_API_KEY",
-               "max_completion_tokens"),
-    "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-               "GEMINI_API_KEY", "max_tokens"),
+FORMATS = ("openai", "anthropic")
+BUILT_IN = {
+    "xai": {"format": "openai", "api_key_env": "XAI_API_KEY",
+            "base_url": "https://api.x.ai/v1/chat/completions"},
+    "openai": {"format": "openai", "api_key_env": "OPENAI_API_KEY",
+               "base_url": "https://api.openai.com/v1/chat/completions",
+               "limit_field": "max_completion_tokens"},
+    "gemini": {"format": "openai", "api_key_env": "GEMINI_API_KEY",
+               "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"},
+    "claude": {"format": "anthropic", "api_key_env": "ANTHROPIC_API_KEY"},
 }
-PROVIDERS = (*ENDPOINTS, "claude")
 CHARS_PER_TOKEN = 3        # cautious, so a spending estimate errs high
-MAX_OUTPUT_TOKENS = 4000
-TIMEOUT_S = 300
+MAX_OUTPUT_TOKENS = 16000
+TIMEOUT_S = 600
 
 CONSULT_SYSTEM = "You are an expert reviewer. Be specific, and say what you are unsure of."
 CONSULT_PROMPT = """\
@@ -59,14 +66,23 @@ class HarnessError(ValueError):
 class Provider:
     name: str
     model: str
-    usd_per_mtok_in: float = 0.0
-    usd_per_mtok_out: float = 0.0
+    format: str
+    api_key_env: str
+    usd_per_mtok_in: float
+    usd_per_mtok_out: float
+    base_url: str = ""
+    limit_field: str = "max_tokens"
+    max_output_tokens: int = MAX_OUTPUT_TOKENS
 
     def estimate(self, prompt_chars: int) -> float:
         """Most this call should cost, assuming a full-length answer."""
         tokens_in = prompt_chars / CHARS_PER_TOKEN
         return (tokens_in * self.usd_per_mtok_in
-                + MAX_OUTPUT_TOKENS * self.usd_per_mtok_out) / 1_000_000
+                + self.max_output_tokens * self.usd_per_mtok_out) / 1_000_000
+
+    def cost(self, tokens_in: int, tokens_out: int) -> float:
+        return (tokens_in * self.usd_per_mtok_in
+                + tokens_out * self.usd_per_mtok_out) / 1_000_000
 
 
 @dataclass
@@ -78,8 +94,36 @@ class Opinion:
     error: str = ""
 
 
+def _provider(name: str, entry: object, path: Path) -> Provider:
+    if not isinstance(entry, dict):
+        raise HarnessError(f"{path} needs an entry for {name}")
+    merged = {**BUILT_IN.get(name, {}), **entry}
+    model = merged.get("model")
+    if not isinstance(model, str) or not model.strip() or model.startswith("SET_"):
+        raise HarnessError(f"{path} needs a model for {name}")
+    if merged.get("format") not in FORMATS:
+        raise HarnessError(f"{path}: {name} needs a format, one of {', '.join(FORMATS)}")
+    if not isinstance(merged.get("api_key_env"), str):
+        raise HarnessError(f"{path}: {name} needs api_key_env, the name of a variable "
+                           "holding its key. Keys never go in this file")
+    prices = (merged.get("usd_per_mtok_in"), merged.get("usd_per_mtok_out"))
+    if not all(isinstance(p, (int, float)) and not isinstance(p, bool) and p > 0 for p in prices):
+        raise HarnessError(f"{path} needs usd_per_mtok_in and usd_per_mtok_out for {name}: "
+                           "these APIs report tokens, not dollars")
+    url = merged.get("base_url", "")
+    if merged["format"] == "openai":
+        parts = urlparse(url if isinstance(url, str) else "")
+        local = parts.hostname in ("localhost", "127.0.0.1")
+        if parts.scheme != "https" and not (parts.scheme == "http" and local):
+            raise HarnessError(f"{path}: {name} needs an https base_url, so its key is not "
+                               "sent in the clear")
+    return Provider(name, model, merged["format"], merged["api_key_env"], float(prices[0]),
+                    float(prices[1]), url, merged.get("limit_field", "max_tokens"),
+                    int(merged.get("max_output_tokens", MAX_OUTPUT_TOKENS)))
+
+
 def load_providers(path: str | Path, names: list[str] | None = None) -> list[Provider]:
-    """Read model names and prices. Without prices a spending limit could not be kept."""
+    """Read models and prices. Without prices a spending limit could not be kept."""
     path = Path(path).expanduser()
     try:
         settings = json.loads(path.read_text())
@@ -87,21 +131,47 @@ def load_providers(path: str | Path, names: list[str] | None = None) -> list[Pro
         raise HarnessError(f"cannot read provider settings {path}: {e}") from e
     if not isinstance(settings, dict):
         raise HarnessError(f"{path} must hold one entry per provider")
-    out = []
-    for name in names or list(settings):
-        if name not in PROVIDERS:
-            raise HarnessError(f"unknown provider {name!r}; choose from {', '.join(PROVIDERS)}")
-        entry = settings.get(name)
-        if not isinstance(entry, dict) or not isinstance(entry.get("model"), str):
-            raise HarnessError(f"{path} needs a model for {name}")
-        prices = (entry.get("usd_per_mtok_in"), entry.get("usd_per_mtok_out"))
-        if name != "claude" and not all(isinstance(p, (int, float)) and p > 0 for p in prices):
-            raise HarnessError(f"{path} needs usd_per_mtok_in and usd_per_mtok_out for {name}: "
-                               "these APIs report tokens, not dollars")
-        out.append(Provider(name, entry["model"], *(float(p or 0) for p in prices)))
+    out = [_provider(name, settings.get(name), path) for name in names or list(settings)]
     if not out:
         raise HarnessError("no providers chosen")
     return out
+
+
+def _key(provider: Provider) -> str:
+    key = os.environ.get(provider.api_key_env)
+    if not key:
+        raise BackendError(f"{provider.api_key_env} is not set", retry=False)
+    return key
+
+
+def _check(provider: Provider, request: Request) -> str:
+    """Refuse what this kind of backend cannot do; returns the prompt to send."""
+    if request.tools:
+        raise BackendError(f"{provider.name} cannot use file tools; only the Claude Agent "
+                           "SDK backend has the guard that makes them safe", retry=False)
+    worst = provider.estimate(len(request.prompt) + len(request.system))
+    if request.max_usd is not None and worst > request.max_usd:
+        raise BackendError(f"{provider.name} could cost ${worst:.2f}, over this call's "
+                           f"${request.max_usd:.2f}", retry=False)
+    if not request.schema:
+        return request.prompt
+    return (f"{request.prompt}\n\nReply with one JSON object and nothing else. It must match "
+            f"this JSON schema:\n{json.dumps(request.schema)}\n")
+
+
+def _reply(provider: Provider, request: Request, text: object, cost: float,
+           truncated: bool) -> Reply:
+    if not isinstance(text, str) or not text.strip():
+        raise BackendError(f"{provider.name}: empty answer", cost)
+    if not request.schema:
+        return Reply(text, cost)
+    if truncated:
+        raise BackendError(f"{provider.name}: answer was cut off at the token limit", cost)
+    bare = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
+    try:
+        return Reply(json.loads(bare), cost)
+    except ValueError as e:
+        raise BackendError(f"{provider.name}: reply was not the requested JSON", cost) from e
 
 
 def _post(url: str, key: str, body: dict) -> dict:
@@ -114,42 +184,72 @@ def _post(url: str, key: str, body: dict) -> dict:
 
 
 class ChatBackend:
-    """One OpenAI-format provider behind the same ``ask`` that ClaudeBackend has."""
+    """Any service that speaks the OpenAI chat format."""
 
     def __init__(self, provider: Provider, post: Callable = _post):
         self.provider = provider
-        self.url, self.key_name, self.limit_field = ENDPOINTS[provider.name]
         self.post = post
 
     async def ask(self, request: Request) -> Reply:
-        if request.schema or request.tools:
-            raise BackendError(f"{self.provider.name} supports plain answers only for now",
-                               retry=False)
-        key = os.environ.get(self.key_name)
-        if not key:
-            raise BackendError(f"{self.key_name} is not set", retry=False)
-        body = {"model": self.provider.model, self.limit_field: MAX_OUTPUT_TOKENS,
+        p = self.provider
+        prompt = _check(p, request)
+        key = _key(p)
+        body = {"model": p.model, p.limit_field: p.max_output_tokens,
                 "messages": [{"role": "system", "content": request.system},
-                             {"role": "user", "content": request.prompt}]}
+                             {"role": "user", "content": prompt}]}
         try:
-            data = await asyncio.to_thread(self.post, self.url, key, body)
+            data = await asyncio.to_thread(self.post, p.base_url, key, body)
         except urllib.error.HTTPError as e:
             # Only the status: an error body can echo the request, and so the key.
-            raise BackendError(f"{self.provider.name} returned HTTP {e.code}",
+            raise BackendError(f"{p.name} returned HTTP {e.code}",
                                retry=e.code in (429, 500, 502, 503, 504)) from None
         except (urllib.error.URLError, OSError, ValueError) as e:
-            raise BackendError(f"{self.provider.name}: {type(e).__name__}") from None
+            raise BackendError(f"{p.name}: {type(e).__name__}") from None
         try:
-            text = data["choices"][0]["message"]["content"]
-            usage = data["usage"]
-            cost = (usage["prompt_tokens"] * self.provider.usd_per_mtok_in
-                    + usage["completion_tokens"] * self.provider.usd_per_mtok_out) / 1_000_000
+            choice = data["choices"][0]
+            text = choice["message"]["content"]
+            cost = p.cost(data["usage"]["prompt_tokens"], data["usage"]["completion_tokens"])
         except (KeyError, IndexError, TypeError) as e:
-            raise BackendError(f"{self.provider.name}: unexpected reply shape",
-                               retry=False) from e
-        if not isinstance(text, str) or not text.strip():
-            raise BackendError(f"{self.provider.name}: empty answer", cost)
-        return Reply(text, cost)
+            raise BackendError(f"{p.name}: unexpected reply shape", retry=False) from e
+        return _reply(p, request, text, cost, choice.get("finish_reason") == "length")
+
+
+class AnthropicBackend:
+    """Claude through the public API and the official SDK, with the caller's own key."""
+
+    def __init__(self, provider: Provider, client: object | None = None):
+        self.provider = provider
+        self.client = client
+
+    async def ask(self, request: Request) -> Reply:
+        p = self.provider
+        prompt = _check(p, request)
+        try:
+            import anthropic
+        except ImportError as e:
+            raise BackendError("the anthropic package is not installed; run "
+                               "`pip install -r requirements-live.txt`", retry=False) from e
+        client = self.client or anthropic.AsyncAnthropic(api_key=_key(p))
+        try:
+            message = await client.messages.create(
+                model=p.model, max_tokens=p.max_output_tokens, system=request.system,
+                messages=[{"role": "user", "content": prompt}])
+        except anthropic.RateLimitError:
+            raise BackendError(f"{p.name} is rate limited") from None
+        except anthropic.APIStatusError as e:
+            raise BackendError(f"{p.name} returned HTTP {e.status_code}",
+                               retry=e.status_code >= 500) from None
+        except anthropic.APIConnectionError:
+            raise BackendError(f"{p.name}: connection failed") from None
+        cost = p.cost(message.usage.input_tokens, message.usage.output_tokens)
+        if message.stop_reason == "refusal":
+            raise BackendError(f"{p.name} declined this request", cost, retry=False)
+        text = "".join(b.text for b in message.content if b.type == "text")
+        return _reply(p, request, text, cost, message.stop_reason == "max_tokens")
+
+
+def make_backend(provider: Provider) -> Backend:
+    return AnthropicBackend(provider) if provider.format == "anthropic" else ChatBackend(provider)
 
 
 async def consult(subject: str, providers: list[Provider], *, max_usd: float,
@@ -161,19 +261,17 @@ async def consult(subject: str, providers: list[Provider], *, max_usd: float,
     if not subject.strip():
         raise HarnessError("nothing to review: the subject is blank")
     prompt = CONSULT_PROMPT.format(tag=f"subject-{secrets.token_hex(4)}", subject=subject)
-    share = max_usd / len(providers)
     chars = len(prompt) + len(CONSULT_SYSTEM)
-    worst = sum(p.estimate(chars) for p in providers if p.name != "claude")
-    worst += share * sum(p.name == "claude" for p in providers)
+    worst = sum(p.estimate(chars) for p in providers)
     if worst > max_usd:
         raise HarnessError(f"these providers could cost ${worst:.2f}, over the "
                            f"${max_usd:.2f} limit; nothing was sent")
     backends = backends or {}
 
     async def one(provider: Provider) -> Opinion:
-        backend = backends.get(provider.name) or _backend(provider)
+        backend = backends.get(provider.name) or make_backend(provider)
         request = Request(label=f"consult:{provider.name}", system=CONSULT_SYSTEM,
-                          prompt=prompt, model=provider.model, max_usd=share)
+                          prompt=prompt, model=provider.model)
         try:
             reply = await backend.ask(request)
         except BackendError as e:
@@ -181,13 +279,6 @@ async def consult(subject: str, providers: list[Provider], *, max_usd: float,
         return Opinion(provider.name, provider.model, str(reply.data), reply.cost)
 
     return await asyncio.gather(*(one(p) for p in providers))
-
-
-def _backend(provider: Provider) -> Backend:
-    if provider.name == "claude":
-        from jjv.backend import ClaudeBackend
-        return ClaudeBackend()
-    return ChatBackend(provider)
 
 
 def with_opinions(subject: str, opinions: list[Opinion],
