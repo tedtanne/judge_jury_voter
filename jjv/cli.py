@@ -13,8 +13,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import dataclasses
-import json
 import sys
 import time
 from pathlib import Path
@@ -22,7 +20,7 @@ from pathlib import Path
 from jjv import voter
 from jjv.backend import ClaudeBackend
 from jjv.fetch import FetchError, fetch_text
-from jjv.harness import consult, load_providers, make_backend, with_opinions
+from jjv.harness import consult, load_providers, make_backend, save_opinions, with_opinions
 from jjv.orchestrator import AGGREGATORS, Config, Orchestrator, convene
 
 
@@ -116,15 +114,6 @@ def gather_opinions(args, text: str) -> tuple[list, str, dict]:
         print(f"  {o.provider}: {status}", file=sys.stderr)
     subject, labels = with_opinions(text, opinions)
     return opinions, subject, labels
-
-
-def save_opinions(store: str, run: dict, opinions: list, labels: dict) -> None:
-    """Keep each model's words and which label it had, beside the run record."""
-    record = {"labels": labels, "opinions": [dataclasses.asdict(o) for o in opinions]}
-    try:
-        (Path(store) / f"{run['id']}.opinions.json").write_text(json.dumps(record, indent=1))
-    except OSError as e:
-        print(f"could not save the model answers: {e}", file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> int:

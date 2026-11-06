@@ -16,7 +16,7 @@ The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs durin
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest -q                                          # 285 unit tests, no API key needed
+pytest -q                                          # 318 unit tests, no API key needed
 python -m jjv.registry > docs/archetypes.md        # regenerate the archetype catalog
 python -m jjv.eval_broker --trials 300 --seed 7    # Nash broker vs weighted vote
 ```
@@ -44,12 +44,13 @@ python -m jjv.cli review plan.md --panel "Thinkers Panel" --consult claude,opena
 | Domain archetypes | Eight role archetypes with rubrics, veto dimensions, presets, and the papers their standards come from | `jjv/domain_roles.py` |
 | Thinkers and gap roles | Seven thinking methods and five roles for areas nobody else covered, with six presets. None holds a veto, and none has run live yet | `jjv/thinkers.py` |
 | Provider harness | Asks several models through their public APIs with your own keys, then sends their answers through the panel. See [`docs/providers.md`](docs/providers.md). Not yet run against a live provider | `jjv/harness.py` |
+| MCP server | Lets MCP clients list panels, read runs and replay a bargain for free. Paid `review` and `generate` are off unless the owner enables them, with limits the client cannot raise. See [`docs/providers.md`](docs/providers.md#mcp-server) | `jjv/mcp_server.py` |
 | Nash_Agent | Archetype record, plus the deterministic bargaining kernel that brokers the Jury round | `jjv/nash.py` |
 | Registry | One lookup for all 58 archetypes and 25 presets, the veto-dimension vocabulary, `validate()`, and the generated catalog | `jjv/registry.py`, `docs/archetypes.md` |
 | Orchestrator | Runs SELECT, JUDGE, JURY, VOTE and the generate loop in fixed order, with retries, quorum, spending limit, saved run records and reputation | `jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py` |
 | Voter | Deterministic tally: consensus score, decision by veto policy, ranked findings, dissents | `jjv/voter.py`, `jjv/verdicts.py` |
 | Evaluation | Nash broker vs weighted voting: offline simulation plus a live-comparison hook | `jjv/eval_broker.py` |
-| Tests and CI | 285 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
+| Tests and CI | 318 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
 | Design docs | The full swarm architecture and roadmap, the broker spec, the domain-agent library map, and the catalog | `docs/` |
 
 **Status.** This repository holds the full archetype registry (58 archetypes, 25 presets, every preset member defined), the negotiation layer and its evaluation, the orchestrator, the Voter, and a CLI. Still to come: the FastAPI backend and web UI, and the live broker comparison on real subjects.
@@ -62,7 +63,7 @@ python -m jjv.cli review plan.md --panel "Thinkers Panel" --consult claude,opena
 5. Decide what Judges are held to when there is no single truth to check a finding against, which also sets the basis for adding or removing agents.
 6. Test the Thinkers and gap roles on real subjects, starting with the Thinkers Panel on a bold idea. They are built but have never run live.
 7. Test negotiation rounds live, to see whether the extra cost buys better fix lists.
-8. Add an MCP server, so MCP clients can call the panels: free read-only tools first, then capped `review` and `generate`.
+8. Try the MCP server from a real client, including its paid tools.
 9. Build the web interface.
 
 Design rationale is in [`docs/architecture.md`](docs/architecture.md). The broker spec is in [`docs/nash-agent.md`](docs/nash-agent.md), the domain archetypes are in [`docs/domain-agents.md`](docs/domain-agents.md), and every archetype and preset is listed in [`docs/archetypes.md`](docs/archetypes.md).

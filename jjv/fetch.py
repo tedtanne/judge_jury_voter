@@ -6,7 +6,9 @@ same fence as any other subject.
 
 from __future__ import annotations
 
+import ipaddress
 import re
+import socket
 import urllib.error
 import urllib.request
 from html.parser import HTMLParser
@@ -74,13 +76,40 @@ def html_to_text(html: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
 
 
-def fetch_text(url: str) -> str:
-    """The text at ``url``, or FetchError. Only http and https links are allowed."""
+def require_public(url: str) -> None:
+    """Refuse a link that points at this machine or a private network."""
+    host = urlparse(url).hostname or ""
+    try:
+        addresses = {info[4][0] for info in socket.getaddrinfo(host, None)}
+    except OSError as e:
+        raise FetchError(f"cannot find {host}: {e}") from e
+    for address in addresses:
+        if not ipaddress.ip_address(address.split("%")[0]).is_global:
+            raise FetchError(f"not a public address: {host}")
+
+
+class _PublicRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        require_public(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def fetch_text(url: str, public_only: bool = False) -> str:
+    """The text at ``url``, or FetchError. Only http and https links are allowed.
+
+    ``public_only`` is for a link that came from an AI client rather than a person, so a
+    steered client cannot read this machine's own services. A name that changes address
+    between the check and the fetch can still get past it.
+    """
     if urlparse(url).scheme not in ("http", "https") or not urlparse(url).netloc:
         raise FetchError(f"not a web link: {url}")
+    if public_only:
+        require_public(url)
+    opener = (urllib.request.build_opener(_PublicRedirects).open if public_only
+              else urllib.request.urlopen)
     request = urllib.request.Request(url, headers={"User-Agent": "judge-jury-voter"})
     try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT_S) as response:
+        with opener(request, timeout=TIMEOUT_S) as response:
             if urlparse(response.geturl()).scheme not in ("http", "https"):
                 raise FetchError(f"link redirected away from the web: {response.geturl()}")
             kind = response.headers.get_content_type()

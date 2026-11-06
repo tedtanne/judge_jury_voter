@@ -11,6 +11,8 @@
 - **Status lines** show elapsed time and money spent, and a run warns when Judges failed.
 - **Provider harness** (`jjv/harness.py`, `docs/providers.md`). `--consult` asks several models through their public APIs and sends their anonymous answers through the panel. `--judge-provider` runs the Judges on a provider. Any OpenAI-format service can be added in settings. Not yet run against a live provider.
 
+- **MCP server** (`jjv/mcp_server.py`). Free tools read the registry and saved runs, and `settle` replays a bargain at a new budget with no model calls. Paid `review` and `generate` are off by default, and limits are set by the server owner, including a total allowance. Links from a client must be public addresses.
+
 ### Changed
 - **Every panel bargains.** The Nash kernel no longer needs Nash_Agent on the panel, so the 13 presets without it stop falling back to a weighted vote. Their fix lists may change, and those runs now count toward reputation. `--aggregator weighted_vote` still selects a plain vote.
 
