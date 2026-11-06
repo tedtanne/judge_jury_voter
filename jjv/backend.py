@@ -13,8 +13,6 @@ from fnmatch import fnmatch
 from pathlib import Path
 from typing import Protocol
 
-from jjv.knowledge import SERVER_NAME
-
 
 class BackendError(RuntimeError):
     """A model call failed. ``cost`` is what it spent before failing.
@@ -39,7 +37,6 @@ class Request:
     tools: list[str] = field(default_factory=list)
     cwd: str | None = None
     max_usd: float | None = None
-    knowledge: object | None = None  # a jjv.knowledge.KnowledgeSession, for grounded Judges
 
 
 @dataclass
@@ -114,15 +111,6 @@ def repo_guard(root: str):
     return guard
 
 
-def knowledge_server(session, create_server, tool):
-    """An in-process MCP server exposing one Judge's session, and nothing else."""
-    def expose(spec: dict):
-        async def run(args: dict) -> dict:
-            return {"content": [{"type": "text", "text": session.call(spec["name"], args)}]}
-        return tool(spec["name"], spec["description"], spec["input_schema"])(run)
-    return create_server(SERVER_NAME, tools=[expose(spec) for spec in session.tools])
-
-
 class ClaudeBackend:
     """One isolated ``query()`` per request, on the Claude Agent SDK.
 
@@ -130,8 +118,7 @@ class ClaudeBackend:
     ``strict_mcp_config`` keep the user's settings, memory and connected MCP servers out,
     ``dontAsk`` denies any tool outside the archetype's read-only allow-list, and
     ``repo_guard`` confines those tools to the repository. That matters because the subject
-    under review is untrusted text. A grounded Judge also gets its own in-process server, the
-    only MCP server it can reach, whose tools are read-only.
+    under review is untrusted text.
     """
 
     MAX_TURNS = 30
@@ -147,19 +134,12 @@ class ClaudeBackend:
             raise BackendError("claude-agent-sdk is not installed; run "
                                "`pip install -r requirements-live.txt`") from e
 
-        servers, allowed = {}, list(request.tools)
-        if request.knowledge is not None:
-            from claude_agent_sdk import create_sdk_mcp_server, tool
-            servers = {SERVER_NAME: knowledge_server(request.knowledge, create_sdk_mcp_server, tool)}
-            allowed += request.knowledge.tool_names
-
         options = ClaudeAgentOptions(
             system_prompt=request.system,
             model=request.model,
             effort=request.effort,
             tools=request.tools,
-            allowed_tools=allowed,
-            mcp_servers=servers,
+            allowed_tools=request.tools,
             permission_mode="dontAsk",
             setting_sources=[],
             strict_mcp_config=True,

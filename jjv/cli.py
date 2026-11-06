@@ -6,9 +6,6 @@
 
 Live runs call Claude and spend money, up to --max-usd. Run records go to ~/.jjv/runs,
 outside any repo, because Judges must not be able to read them.
-
---knowledge lets Judges look up and cite a personal knowledge base, which sends the text they
-read to Claude. It is off by default and needs the optional km package.
 """
 
 from __future__ import annotations
@@ -20,7 +17,6 @@ from pathlib import Path
 
 from jjv import voter
 from jjv.backend import ClaudeBackend
-from jjv.knowledge import KnowledgeUnavailable
 from jjv.orchestrator import AGGREGATORS, Config, Orchestrator, convene
 
 
@@ -42,9 +38,6 @@ def parser() -> argparse.ArgumentParser:
     ap.add_argument("--threshold", type=float, default=4.0)
     ap.add_argument("--store", default=str(Path.home() / ".jjv" / "runs"))
     ap.add_argument("--out", help="generate: write the final draft here")
-    ap.add_argument("--knowledge", action="store_true",
-                    help="let Judges look up and cite the knowledge base; sends what they read to Claude")
-    ap.add_argument("--knowledge-tag", help="limit --knowledge to records with this tag")
     return ap
 
 
@@ -58,18 +51,6 @@ def progress(event: dict) -> None:
         print(f"  note: {event['text']}", file=sys.stderr)
     elif event["type"] == "failure":
         print(f"  {event['archetype_id']} FAILED: {event['error']}", file=sys.stderr)
-
-
-def knowledge_summary(section: dict) -> str:
-    lines = [f"\nKnowledge base: {len(section['reads'])} reads, "
-             f"{section['withheld']} sensitive results withheld."]
-    if section["cited"]:
-        lines.append("Cited by findings (check these yourself):")
-        lines += [f"  {c['finding']}: {c['id']}" for c in section["cited"]]
-    if section["rejected_citations"]:
-        lines.append(f"Rejected {len(section['rejected_citations'])} citations of records "
-                     "the Judge had not read.")
-    return "\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -89,14 +70,12 @@ def main(argv: list[str] | None = None) -> int:
     config = Config(jury=not args.no_jury, aggregator=args.aggregator, model=args.model,
                     repo=args.repo, max_usd=args.max_usd, store=args.store,
                     revision_budget=args.revision_budget, max_rounds=args.max_rounds,
-                    threshold=args.threshold,
-                    knowledge=args.knowledge or bool(args.knowledge_tag),
-                    knowledge_tag=args.knowledge_tag)
+                    threshold=args.threshold)
     try:
         orchestrator = Orchestrator(ClaudeBackend(), config, progress)
         entry = orchestrator.review if args.mode == "review" else orchestrator.generate
         run = asyncio.run(entry(text, panel))
-    except (ValueError, KnowledgeUnavailable) as e:
+    except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
 
@@ -112,8 +91,6 @@ def main(argv: list[str] | None = None) -> int:
               f"of {len(run['rounds'])}.")
         if args.out:
             Path(args.out).write_text(run["draft"])
-    if "knowledge" in run:
-        print(knowledge_summary(run["knowledge"]))
     print(f"\nRun {run['id']}: ${run['cost_usd']:.2f}, saved in {args.store}/")
     return 0
 

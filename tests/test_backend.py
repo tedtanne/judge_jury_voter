@@ -54,24 +54,6 @@ def test_tools_always_come_with_the_repo_guard(sdk, tmp_path):
     assert matcher.matcher == "Read|Grep|Glob" and matcher.on_failure == "block"
 
 
-def test_grounded_judge_reaches_only_its_own_server(sdk, monkeypatch):
-    fake = sys.modules["claude_agent_sdk"]
-    fake.tool = lambda name, description, schema: (lambda fn: name)
-    fake.create_sdk_mcp_server = lambda name, tools: {"name": name, "tools": tools}
-    session = SimpleNamespace(tools=[{"name": "search", "description": "d", "input_schema": {}}],
-                              tool_names=["mcp__km__search"])
-    ask(knowledge=session)
-    o = sdk.options
-    assert set(o.mcp_servers) == {"km"} and o.allowed_tools == ["mcp__km__search"]
-    assert o.tools == [] and o.strict_mcp_config is True and o.permission_mode == "dontAsk"
-    assert o.hooks is None
-
-
-def test_an_ordinary_judge_has_no_servers(sdk):
-    ask()
-    assert sdk.options.mcp_servers == {} and sdk.options.allowed_tools == []
-
-
 def test_sdk_exceptions_become_backend_errors_with_cost(sdk):
     sdk.messages, sdk.raises = [], SDKError("process died")
     with pytest.raises(BackendError) as e:

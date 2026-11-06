@@ -3,7 +3,6 @@
 ## 2026-11-04
 
 ### Added
-- **Grounded runs** (`jjv/knowledge.py`, `--knowledge`): Judges can look up and cite a personal knowledge base through the optional `km` package. Off by default. A citation counts only if that Judge read the record, and the run record stores ids and version hashes, not note text. Not yet run live.
 - **Orchestrator** (`jjv/orchestrator.py`): review and generate runs, retries, quorum, per-run spending limit, saved run records, reputation across runs, and `live_run_fn` for `run_live_comparison`.
 - **Claude backend** (`jjv/backend.py`) and **CLI** (`jjv/cli.py`). The SDK is in `requirements-live.txt`; tests and CI do not need it.
 - **Voter** (`jjv/voter.py`) and **verdict contract** (`jjv/verdicts.py`).
