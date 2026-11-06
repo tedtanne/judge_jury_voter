@@ -16,8 +16,9 @@ from jjv.archetypes import DEFAULT_ARCHETYPES
 from jjv.domain_roles import DOMAIN_ROLES
 from jjv.legends import LEGENDS, PRESET_PANELS
 from jjv.nash import NASH_AGENT
+from jjv.thinkers import GAP_ROLES, THINKERS
 
-ALL_ARCHETYPES = [*DEFAULT_ARCHETYPES, *LEGENDS, *DOMAIN_ROLES, NASH_AGENT]
+ALL_ARCHETYPES = [*DEFAULT_ARCHETYPES, *LEGENDS, *THINKERS, *DOMAIN_ROLES, *GAP_ROLES, NASH_AGENT]
 BY_ID = {a["id"]: a for a in ALL_ARCHETYPES}
 
 # The controlled vocabulary for veto dimensions. A Judge's finding must carry one of
@@ -85,7 +86,7 @@ def _row(a):
     veto = ", ".join(f"`{d}`" for d in a.get("veto_dimensions", [])) or "—"
     dims = "; ".join(f"{d['name']} ({d['weight']:g})" for d in a["rubric"]) or "— (author, unscored)"
     by = a.get("inspired_by") or ""
-    by = f" · *inspired by {by}*" if by and a in LEGENDS else ""
+    by = f" · *inspired by {by}*" if by and (a in LEGENDS or a in THINKERS) else ""
     return f"| `{a['id']}` | {a['name']}{by} | {a['discipline']} | {a['weight']:g} | {veto} | {dims} |"
 
 
@@ -98,11 +99,13 @@ def catalog() -> str:
         "`tests/test_registry.py` fails when this file and the code disagree.",
         "",
         f"**{len(ALL_ARCHETYPES)} archetypes** ({len(DEFAULT_ARCHETYPES)} defaults, "
-        f"{len(LEGENDS)} legends, {len(DOMAIN_ROLES)} domain roles, 1 broker) and "
+        f"{len(LEGENDS)} legends, {len(THINKERS)} thinkers, {len(DOMAIN_ROLES)} domain roles, "
+        f"{len(GAP_ROLES)} gap roles, 1 broker) and "
         f"**{len(PRESET_PANELS)} preset panels**.",
         "",
         "Legends are trait profiles *inspired by* how notable people are publicly known to "
-        "work. They are not impersonations and imply no endorsement or affiliation.",
+        "work. Thinkers are methods of reasoning inspired by historical thinkers. Neither are "
+        "impersonations, and they imply no endorsement or affiliation.",
         "",
         "## Defaults (auto-convene by discipline)",
         "", head, *(_row(a) for a in DEFAULT_ARCHETYPES), "",
@@ -115,7 +118,9 @@ def catalog() -> str:
     for c in cats:
         members = [a for a in LEGENDS if a["category"] == c]
         out += [f"### {c} ({len(members)})", "", head, *(_row(a) for a in members), ""]
-    out += ["## Domain roles", "", head, *(_row(a) for a in DOMAIN_ROLES), "",
+    out += ["## Thinkers (join through presets)", "", head, *(_row(a) for a in THINKERS), "",
+            "## Domain roles", "", head, *(_row(a) for a in DOMAIN_ROLES), "",
+            "## Gap roles", "", head, *(_row(a) for a in GAP_ROLES), "",
             "## Broker", "", head, _row(NASH_AGENT), "",
             "## Veto dimensions", "", "| Dimension | Covers | Held by |", "|---|---|---|"]
     for d, desc in VETO_DIMENSIONS.items():

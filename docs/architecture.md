@@ -38,7 +38,7 @@ Because the rubric lives in the record, adding "Accessibility" as a scored dimen
 
 ## Archetype roster & preset panels
 
-Beyond the six generic defaults (`jjv/archetypes.py`), the system ships a **roster of 31 legend archetypes** (`jjv/legends.py`) plus curated **preset panels**. The generated catalog, `docs/archetypes.md`, lists every record. This is where the "best in the business" idea becomes concrete.
+Beyond the six generic defaults (`jjv/archetypes.py`), the system ships a **roster of 31 legend archetypes** (`jjv/legends.py`), seven Thinkers and five gap roles (`jjv/thinkers.py`), plus curated **preset panels**. The generated catalog, `docs/archetypes.md`, lists every record. This is where the "best in the business" idea becomes concrete.
 
 **Trait-profiles, not impersonations.** Each legend is a lens *inspired by* a notable person — it embodies the principles, standards, and characteristic questions that person is known for, and carries an `inspired_by` field so it stays recognizable. It never claims to *be* that person, never speaks as them, and never fabricates their specific quotes or opinions. This is a deliberate design decision on two grounds: a trait-profile is more stable and useful than a celebrity impression (which drifts into caricature), and it avoids putting invented words in a real person's mouth. The house archetype, **The Simplifier**, is built on Ted Tanner's *Reduce · Refactor · Reuse* discipline — treated as a weighted **basis set with context-dependent weighting, not a fixed sequence**: Reduce = prove it deserves to exist (deletion, not optimization), Reuse is the receipt not the goal, and the loop feeds back. It carries veto power over unnecessary complexity.
 
@@ -95,12 +95,12 @@ Several controls keep the swarm useful and bounded. **Budgets**: every run carri
 
 **In the repository (`github.com/tedtanne/judge_jury_voter`):**
 
-- **The full archetype registry.** 46 archetypes (6 defaults, 31 legends, 8 domain roles, Nash_Agent) and 19 presets, with every preset member defined. The roster was ported in October 2026 from the Deliberation Console prototype, which had held it as display-name-keyed data with unscoped veto flags. `jjv/registry.py` provides `get`, `panel`, `validate` and the generated catalog.
+- **The full archetype registry.** 58 archetypes (6 defaults, 31 legends, 7 Thinkers, 8 domain roles, 5 gap roles, Nash_Agent) and 25 presets, with every preset member defined. The roster was ported in October 2026 from the Deliberation Console prototype, which had held it as display-name-keyed data with unscoped veto flags. `jjv/registry.py` provides `get`, `panel`, `validate` and the generated catalog.
 - **Nash_Agent v2 and its bargaining kernel** (`jjv/nash.py`). Version 2 adds coalition, computability and stopping rules from the mechanism-design papers.
 - **The broker evaluation** (`jjv/eval_broker.py`). In an offline simulation of 300 synthetic panels, a single overconfident Judge displaced 1% of the broker's chosen fixes against 19% under weighted voting, and fewer Judges were shut out (0.06 vs 0.13 on average). The cost was 96% vs 99% of the maximum total value addressed. It also has a live-comparison hook for real runs.
 - **The orchestrator** (`jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py`). It runs review and generate modes on the Claude Agent SDK, one isolated `query()` per Judge, with Nash_Agent in the Jury phase, `endorses` and `change_aversion` in the verdict, reputation saved across runs, and `live_run_fn` connecting `run_live_comparison` to the generate loop.
 - **The Voter** (`jjv/voter.py`) and the verdict contract (`jjv/verdicts.py`). The Voter is a deterministic tally; no synthesis agent yet.
-- **197 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
+- **207 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
 
 **Orchestrator decisions worth knowing:**
 - Nash_Agent is not a player. It holds no stake, so its own findings reach the Voter but are not bargained over. One reaches a fix list only if a Judge links a finding to it.
@@ -133,7 +133,7 @@ One reviewer and a five-Judge panel reviewed four small samples with two planted
 
 ## Next steps
 
-In recommended order, as of 2026-11-04. Each step makes the next one more trustworthy.
+In recommended order, as of 2026-11-06. Each step makes the next one more trustworthy.
 
 1. **Confirm finding links on the full models.** Two cheap-model runs passed: by hand, about 1 of 36 links looked wrong and about 15% of clear matches were missed, within the limits of 20% missed and 10% wrong. One full-model review would confirm it. Findings no Judge linked still tie within a severity.
 2. **Show Judges the brief in generate mode.** Judges and the blind panel see only the draft, so a polished draft that misses the brief can still score well.
@@ -151,10 +151,11 @@ In recommended order, as of 2026-11-04. Each step makes the next one more trustw
    - **The right standard for each:** what counts as a good finding for each type: a confirmed fact, a correct use of the agreed standard, or a clear statement of what would have to be true?
    - **New ideas:** how does JJV keep from treating "nobody has done this" as "this can't work", while still catching things that really are impossible?
    - **Adding agents:** the basis for adding or removing agents follows from these answers. An agent earns its place by doing well against those standards in an area nobody else on the roster covers.
-8. **Add an MCP server.** It would let Claude Code, Claude Desktop and other MCP clients call the panels directly, as a usable interface well before the web UI. Build it in two stages:
+8. **Test the Thinkers and gap roles on real subjects.** Twelve archetypes and six presets are built (`jjv/thinkers.py`), but none has run live, so nobody knows yet whether they help. None holds a veto, and each must earn its place under step 7. Start with the Thinkers Panel on a bold idea, compared with a current panel on the same subject, to see whether it reduces the panel's conservative bias. A language model told to think like a famous person may only imitate the style, so check the findings, not the tone. Merge or retire any archetype that adds nothing.
+9. **Add an MCP server.** It would let Claude Code, Claude Desktop and other MCP clients call the panels directly, as a usable interface well before the web UI. Build it in two stages:
    - **Free tools first:** `list_panels`, `list_archetypes`, `get_run`, and `settle`, which re-runs the Voter and Nash on a saved run at a different budget with no model calls.
    - **Paid tools second:** `review` and `generate`, off unless enabled. An AI would be choosing when to spend, so they need a low default limit and a hard maximum the caller cannot raise. Runs take minutes, so they should return a run id at once and report through `get_run`. Repositories must come from a configured allow-list, not from the caller.
-9. **Build the web interface (Phase 3).** Do this after the steps above, so the interface sits on a loop whose results can be trusted.
+10. **Build the web interface (Phase 3).** Do this after the steps above, so the interface sits on a loop whose results can be trusted.
 
 ## Build roadmap
 

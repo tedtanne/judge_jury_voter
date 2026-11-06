@@ -288,8 +288,9 @@ LEGEND_PRESETS = {
 def _all_presets():
     from jjv.domain_roles import DOMAIN_PRESETS
     from jjv.nash import NASH_PRESETS
+    from jjv.thinkers import THINKER_PRESETS
     merged = {}
-    for group in (LEGEND_PRESETS, NASH_PRESETS, DOMAIN_PRESETS):
+    for group in (LEGEND_PRESETS, NASH_PRESETS, DOMAIN_PRESETS, THINKER_PRESETS):
         for name, members in group.items():
             if name in merged:
                 raise ValueError(f"duplicate preset name: {name}")
@@ -297,5 +298,5 @@ def _all_presets():
     return merged
 
 
-# Every preset the system ships: 10 legend rooms + 2 brokered + 7 domain rooms.
+# Every preset the system ships: 10 legend rooms + 2 brokered + 7 domain + 6 thinker rooms.
 PRESET_PANELS = _all_presets()

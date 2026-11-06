@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-06
+
+### Added
+- **Twelve archetypes and six presets** (`jjv/thinkers.py`), bringing the roster to 58 archetypes and 25 presets. Seven Thinkers are methods of reasoning inspired by historical thinkers: Paradox Hunter, Formalizer, Back-of-Envelope Estimator, Thought Experimenter, Gap Finder, Shadow Reader and Human Consequences Reader. Five gap roles cover areas nobody did: Assumption Tester, Regulatory Reader, Model Evaluator, Distribution Realist and Developmental Editor. None holds a veto, and none has run live.
+- **Next step:** decide what Judges are held to when there is no single truth to check a finding against.
+
+### Removed
+- The list of non-research and personal records from `docs/domain-agents.md`.
+- Knowledge base grounding from 2026-11-04 (`--knowledge`, finding citations), reverted in PR #8.
+
 ## 2026-11-04
 
 ### Added
