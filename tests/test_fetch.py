@@ -50,6 +50,11 @@ def test_void_tags_inside_skipped_blocks_do_not_leak_text():
     assert html_to_text("<nav><img src=a><br>Menu</nav><p>Body</p>") == "Body"
 
 
+def test_equations_drawn_as_images_keep_their_text():
+    text = html_to_text('<p>dissipates at least <img src="f.png" alt="k_{B}T\\ln 2"> of energy</p>')
+    assert text == "dissipates at least k_{B}T\\ln 2 of energy"
+
+
 def test_reader_comments_are_not_part_of_the_post():
     text = html_to_text("""<article><p>The post</p><div id="comments"><div><p>A reader</p></div>
         </div></article><div class="comment-respond">Reply</div>""")
@@ -113,3 +118,15 @@ def test_cli_reports_a_bad_link_before_spending(monkeypatch, capsys):
     serve(monkeypatch, urllib.error.URLError("no route"))
     assert cli.main(["review", "--url", "https://x.test/a", "--panel", "Docs Crit"]) == 2
     assert "cannot fetch" in capsys.readouterr().err
+
+
+def test_status_lines_show_time_and_money(capsys):
+    cli.Progress()({"type": "phase", "phase": "JURY", "cost_usd": 1.5})
+    err = capsys.readouterr().err
+    assert "$ 1.50" in err and "[JURY]" in err and err.startswith("00:00")
+
+
+def test_failed_judges_produce_a_plain_warning():
+    assert cli.failure_warning({"failures": []}) is None
+    text = cli.failure_warning({"failures": [{"phase": "JURY"}, {"phase": "JURY"}]})
+    assert "2 Judge call(s)" in text and "JURY" in text and "--max-usd" in text

@@ -36,8 +36,14 @@ class _Text(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         if tag in _VOID:
-            if tag == "br" and not self.skipping:
+            if self.skipping:
+                return
+            if tag == "br":
                 self.parts.append("\n")
+            elif tag == "img" and dict(attrs).get("alt"):
+                # Equations are often images, with the LaTeX in alt. Dropping it garbles
+                # the sentence, and Judges then report the gap as a fault in the writing.
+                self.parts.append(f" {dict(attrs)['alt']} ")
             return
         marks = {dict(attrs).get("id") or ""} | set((dict(attrs).get("class") or "").split())
         if tag in _SKIP or self.skipping or marks & _REPLIES:   # readers' replies are not the post

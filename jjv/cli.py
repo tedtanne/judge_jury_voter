@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+import time
 from pathlib import Path
 
 from jjv import voter
@@ -46,16 +47,43 @@ def parser() -> argparse.ArgumentParser:
     return ap
 
 
-def progress(event: dict) -> None:
-    if event["type"] == "phase":
-        print(f"[{event['phase']}]", file=sys.stderr)
-    elif event["type"] == "verdict":
-        print(f"  {event['archetype_id']}: {event['recommendation']} "
-              f"({event['overall']:g}/5)", file=sys.stderr)
-    elif event["type"] == "note":
-        print(f"  note: {event['text']}", file=sys.stderr)
-    elif event["type"] == "failure":
-        print(f"  {event['archetype_id']} FAILED: {event['error']}", file=sys.stderr)
+class Progress:
+    """One status line per event, with elapsed time and money spent so far."""
+
+    def __init__(self):
+        self.start = time.monotonic()
+
+    def line(self, event: dict, text: str) -> None:
+        seconds = int(time.monotonic() - self.start)
+        print(f"{seconds // 60:02d}:{seconds % 60:02d}  ${event.get('cost_usd', 0):5.2f}  {text}",
+              file=sys.stderr, flush=True)
+
+    def __call__(self, event: dict) -> None:
+        kind = event["type"]
+        if kind == "phase":
+            self.line(event, f"[{event['phase']}]")
+        elif kind == "verdict":
+            self.line(event, f"  {event['archetype_id']}: {event['recommendation']} "
+                             f"({event['overall']:g}/5)")
+        elif kind == "note":
+            self.line(event, f"  {event['text']}")
+        elif kind == "failure":
+            self.line(event, f"  {event['archetype_id']} FAILED: {event['error']}")
+        elif kind == "settlement":
+            self.line(event, f"  settlement proposes {len(event['address_now'])} fixes")
+        elif kind == "vote":
+            self.line(event, f"  decision: {event['decision']} ({event['score']:g}/5)")
+
+
+def failure_warning(run: dict) -> str | None:
+    """Say plainly when Judges dropped out, because the result then means less."""
+    failures = run.get("failures") or []
+    if not failures:
+        return None
+    phases = sorted({f["phase"] for f in failures})
+    return (f"WARNING: {len(failures)} Judge call(s) failed ({', '.join(phases)}). Judges that "
+            "failed the Jury kept their first verdict, so this result is less deliberated "
+            "than it looks. Raise --max-usd if the errors mention budget.")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -87,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
                     deliberation_rounds=args.deliberation_rounds,
                     threshold=args.threshold)
     try:
-        orchestrator = Orchestrator(ClaudeBackend(), config, progress)
+        orchestrator = Orchestrator(ClaudeBackend(), config, Progress())
         entry = orchestrator.review if args.mode == "review" else orchestrator.generate
         run = asyncio.run(entry(text, panel))
     except ValueError as e:
@@ -96,7 +124,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if run["status"] != "done":
         print(f"run failed: {run['error']}", file=sys.stderr)
+        print(failure_warning(run) or "", file=sys.stderr)
         return 1
+    if warning := failure_warning(run):
+        print(warning, file=sys.stderr)
     print(voter.summary(run["result"]))
     if run["result"]["fixes"]:
         print("\nFix in the next revision:")
