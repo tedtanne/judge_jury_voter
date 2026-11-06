@@ -18,7 +18,7 @@ class VerdictError(ValueError):
     """The reply cannot be used as a verdict."""
 
 
-def schema(archetype: dict, *, deliberating: bool = False, citations: bool = False) -> dict:
+def schema(archetype: dict, *, deliberating: bool = False) -> dict:
     """JSON schema for one Judge's verdict, with that Judge's own rubric as required keys."""
     dims = [d["name"] for d in archetype["rubric"]]
     vetoes = list(archetype.get("veto_dimensions", []))
@@ -39,11 +39,6 @@ def schema(archetype: dict, *, deliberating: bool = False, citations: bool = Fal
         finding["properties"]["same_as"] = {
             "type": "string",
             "description": "Another Judge's finding id, when this is the same issue.",
-        }
-    if citations:
-        finding["properties"]["citations"] = {
-            "type": "array", "items": {"type": "string"},
-            "description": "Ids of knowledge-base records you read that support this finding.",
         }
     props = {
         "scores": {
@@ -85,33 +80,13 @@ def canonical_dimension(dimension: object, archetype: dict) -> object:
     return dimension
 
 
-def _citations(value: object, citable: set[str], finding_id: str,
-               rejected: list[dict]) -> list[str]:
-    """Keep citations this Judge read. Any other is recorded and dropped.
-
-    The finding stays either way: a bad reference is a reason to distrust the reference, not
-    proof that the finding is wrong.
-    """
-    kept: list[str] = []
-    for item in value if isinstance(value, list) else []:
-        if not isinstance(item, str) or item in kept:
-            continue
-        if item in citable:
-            kept.append(item)
-        else:
-            rejected.append({"finding": finding_id, "id": item[:200], "reason": "not read"})
-    return kept
-
-
 def normalize(raw: object, archetype: dict, alias: str, *,
-              previous: dict | None = None, known_ids: set[str] = frozenset(),
-              citable: set[str] | None = None) -> dict:
+              previous: dict | None = None, known_ids: set[str] = frozenset()) -> dict:
     """Validate ``raw`` and return a verdict dict.
 
     ``alias`` is the Judge's anonymous label. ``previous`` is its Judge-round verdict when
     this is a Jury revision. ``known_ids`` are every finding id on the table, used to drop
-    endorsements of findings that do not exist. ``citable`` is what this Judge has read in a
-    grounded run; None means the run is not grounded and findings carry no citations.
+    endorsements of findings that do not exist.
     """
     if not isinstance(raw, dict):
         raise VerdictError("verdict is not an object")
@@ -136,7 +111,6 @@ def normalize(raw: object, archetype: dict, alias: str, *,
     by_title = {f["title"]: f["id"] for f in earlier}
     used = {int(i.rsplit("-", 1)[1]) for i in mine}
     findings = []
-    rejected: list[dict] = []
     for f in raw.get("findings") or []:
         if not isinstance(f, dict) or not str(f.get("title", "")).strip():
             raise VerdictError("finding without a title")
@@ -161,11 +135,6 @@ def normalize(raw: object, archetype: dict, alias: str, *,
         link = f.get("same_as")
         if isinstance(link, str) and link.upper() in known_ids:
             findings[-1]["same_as"] = link.upper()
-        if citable is not None:
-            # A finding kept in the Jury round keeps its citations unless it restates them.
-            earlier_cites = next((x.get("citations", []) for x in earlier if x["id"] == fid), [])
-            cited = f["citations"] if "citations" in f else earlier_cites
-            findings[-1]["citations"] = _citations(cited, citable, fid, rejected)
 
     own = {f["id"] for f in findings}
     for f in findings:
@@ -185,8 +154,6 @@ def normalize(raw: object, archetype: dict, alias: str, *,
                             if e in known_ids and e not in own}),
         "changed_mind": str(raw.get("changed_mind", "")),
     }
-    if rejected:
-        verdict["rejected_citations"] = rejected
     if isinstance(raw.get("change_aversion"), (int, float)):
         verdict["change_aversion"] = min(1.0, max(0.0, float(raw["change_aversion"])))
     verdict["overall"] = overall(verdict, archetype)
@@ -278,9 +245,8 @@ def digest(verdicts: list[dict], viewer: str, fence: str,
         out.append(f"Judge {v['alias']}: {v['recommendation']}, overall {v['overall']:g}/5")
         out.append(f"  Rationale: {v['rationale']}")
         for f in v["findings"]:
-            cites = f" [cites {', '.join(f['citations'])}]" if f.get("citations") else ""
             out.append(f"  - {f['id']} [{f['severity']}] {f['title']} "
-                       f"({f['location']}): {f['detail']}{cites}")
+                       f"({f['location']}): {f['detail']}")
         out.append("")
     out += [f"</{fence}>", ""]
     if settlement_text:
