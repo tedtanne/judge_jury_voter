@@ -7,6 +7,10 @@
 - **Negotiation rounds** (`--deliberation-rounds`, default 1). Judges exchange positions, arguments and offers over several Jury rounds. An agreed list replaces the formula if it fits the budget and keeps every credible veto; otherwise the formula decides. Not yet run live.
 - **Next step:** decide what Judges are held to when there is no single truth to check a finding against.
 
+- **`--url`** reviews a web page. Equations drawn as images keep their LaTeX, and reader comments are left out (`jjv/fetch.py`).
+- **Status lines** show elapsed time and money spent, and a run warns when Judges failed.
+- **Provider harness** (`jjv/harness.py`, `docs/providers.md`). `--consult` asks several models through their public APIs and sends their anonymous answers through the panel. `--judge-provider` runs the Judges on a provider. Any OpenAI-format service can be added in settings. Not yet run against a live provider.
+
 ### Changed
 - **Every panel bargains.** The Nash kernel no longer needs Nash_Agent on the panel, so the 13 presets without it stop falling back to a weighted vote. Their fix lists may change, and those runs now count toward reputation. `--aggregator weighted_vote` still selects a plain vote.
 

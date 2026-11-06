@@ -2,6 +2,7 @@
 
     python -m jjv.cli review docs/design.md --panel "Physics of Compute"
     git diff | python -m jjv.cli review - --discipline code
+    python -m jjv.cli review --url https://example.com/post --panel "Writers' Room"
     python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 
 Live runs call Claude and spend money, up to --max-usd. Run records go to ~/.jjv/runs,
@@ -12,18 +13,24 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
+import json
 import sys
+import time
 from pathlib import Path
 
 from jjv import voter
 from jjv.backend import ClaudeBackend
+from jjv.fetch import FetchError, fetch_text
+from jjv.harness import consult, load_providers, make_backend, with_opinions
 from jjv.orchestrator import AGGREGATORS, Config, Orchestrator, convene
 
 
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="python -m jjv.cli", description=__doc__.split("\n\n")[0])
     ap.add_argument("mode", choices=["review", "generate"])
-    ap.add_argument("input", help="file holding the subject or brief; - reads stdin")
+    ap.add_argument("input", nargs="?", help="file holding the subject or brief; - reads stdin")
+    ap.add_argument("--url", help="review the text of this web page instead of a file")
     who = ap.add_mutually_exclusive_group(required=True)
     who.add_argument("--panel", help='a preset name, such as "Physics of Compute"')
     who.add_argument("--judges", help="comma-separated archetype ids")
@@ -33,6 +40,14 @@ def parser() -> argparse.ArgumentParser:
     ap.add_argument("--aggregator", choices=AGGREGATORS, default="nash_broker")
     ap.add_argument("--deliberation-rounds", type=int, default=1,
                     help="Jury rounds; above 1, Judges negotiate and cost rises with each round")
+    ap.add_argument("--consult", help="review only: ask these models first and give the "
+                    "Judges their answers, for example xai,openai,gemini,claude")
+    ap.add_argument("--consult-usd", type=float, default=1.0,
+                    help="spending limit for the --consult models, on top of --max-usd")
+    ap.add_argument("--judge-provider", help="run the Judges on this provider's public API "
+                    "instead of the local Claude Agent SDK")
+    ap.add_argument("--providers-file", default="~/.jjv/providers.json",
+                    help="model names and prices for --consult and --judge-provider")
     ap.add_argument("--model", help="use this model for every archetype")
     ap.add_argument("--max-usd", type=float, default=5.0, help="spending limit for the run")
     ap.add_argument("--revision-budget", type=float, default=8.0)
@@ -43,22 +58,88 @@ def parser() -> argparse.ArgumentParser:
     return ap
 
 
-def progress(event: dict) -> None:
-    if event["type"] == "phase":
-        print(f"[{event['phase']}]", file=sys.stderr)
-    elif event["type"] == "verdict":
-        print(f"  {event['archetype_id']}: {event['recommendation']} "
-              f"({event['overall']:g}/5)", file=sys.stderr)
-    elif event["type"] == "note":
-        print(f"  note: {event['text']}", file=sys.stderr)
-    elif event["type"] == "failure":
-        print(f"  {event['archetype_id']} FAILED: {event['error']}", file=sys.stderr)
+class Progress:
+    """One status line per event, with elapsed time and money spent so far."""
+
+    def __init__(self):
+        self.start = time.monotonic()
+
+    def line(self, event: dict, text: str) -> None:
+        seconds = int(time.monotonic() - self.start)
+        print(f"{seconds // 60:02d}:{seconds % 60:02d}  ${event.get('cost_usd', 0):5.2f}  {text}",
+              file=sys.stderr, flush=True)
+
+    def __call__(self, event: dict) -> None:
+        kind = event["type"]
+        if kind == "phase":
+            self.line(event, f"[{event['phase']}]")
+        elif kind == "verdict":
+            self.line(event, f"  {event['archetype_id']}: {event['recommendation']} "
+                             f"({event['overall']:g}/5)")
+        elif kind == "note":
+            self.line(event, f"  {event['text']}")
+        elif kind == "failure":
+            self.line(event, f"  {event['archetype_id']} FAILED: {event['error']}")
+        elif kind == "settlement":
+            self.line(event, f"  settlement proposes {len(event['address_now'])} fixes")
+        elif kind == "vote":
+            self.line(event, f"  decision: {event['decision']} ({event['score']:g}/5)")
+
+
+def failure_warning(run: dict) -> str | None:
+    """Say plainly when Judges dropped out, because the result then means less."""
+    failures = run.get("failures") or []
+    if not failures:
+        return None
+    phases = sorted({f["phase"] for f in failures})
+    return (f"WARNING: {len(failures)} Judge call(s) failed ({', '.join(phases)}). Judges that "
+            "failed the Jury kept their first verdict, so this result is less deliberated "
+            "than it looks. Raise --max-usd if the errors mention budget.")
+
+
+def judge_backend(args):
+    if not args.judge_provider:
+        return ClaudeBackend()
+    if args.repo:
+        raise ValueError("--repo needs the Claude Agent SDK backend, which guards file tools")
+    return make_backend(load_providers(args.providers_file, [args.judge_provider])[0])
+
+
+def gather_opinions(args, text: str) -> tuple[list, str, dict]:
+    """Ask the chosen models, report each one, and build the subject for the panel."""
+    names = [n.strip() for n in args.consult.split(",") if n.strip()]
+    providers = load_providers(args.providers_file, names)
+    print(f"asking {len(providers)} models, limit ${args.consult_usd:.2f}", file=sys.stderr)
+    opinions = asyncio.run(consult(text, providers, max_usd=args.consult_usd))
+    for o in opinions:
+        status = f"FAILED: {o.error}" if o.error else f"answered (${o.cost:.2f})"
+        print(f"  {o.provider}: {status}", file=sys.stderr)
+    subject, labels = with_opinions(text, opinions)
+    return opinions, subject, labels
+
+
+def save_opinions(store: str, run: dict, opinions: list, labels: dict) -> None:
+    """Keep each model's words and which label it had, beside the run record."""
+    record = {"labels": labels, "opinions": [dataclasses.asdict(o) for o in opinions]}
+    try:
+        (Path(store) / f"{run['id']}.opinions.json").write_text(json.dumps(record, indent=1))
+    except OSError as e:
+        print(f"could not save the model answers: {e}", file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if (args.input is None) == (args.url is None):
+        print("error: give exactly one of a file or --url", file=sys.stderr)
+        return 2
     try:
-        text = sys.stdin.read() if args.input == "-" else Path(args.input).read_text()
+        if args.url:
+            text = fetch_text(args.url)
+        else:
+            text = sys.stdin.read() if args.input == "-" else Path(args.input).read_text()
+    except FetchError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
     except (OSError, UnicodeDecodeError) as e:
         print(f"error: cannot read {args.input}: {e}", file=sys.stderr)
         return 2
@@ -75,16 +156,26 @@ def main(argv: list[str] | None = None) -> int:
                     deliberation_rounds=args.deliberation_rounds,
                     threshold=args.threshold)
     try:
-        orchestrator = Orchestrator(ClaudeBackend(), config, progress)
+        orchestrator = Orchestrator(judge_backend(args), config, Progress())
         entry = orchestrator.review if args.mode == "review" else orchestrator.generate
+        opinions, labels = [], {}
+        if args.consult:
+            if args.mode != "review":
+                raise ValueError("--consult works with review only")
+            opinions, text, labels = gather_opinions(args, text)
         run = asyncio.run(entry(text, panel))
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
 
+    if opinions:
+        save_opinions(args.store, run, opinions, labels)
     if run["status"] != "done":
         print(f"run failed: {run['error']}", file=sys.stderr)
+        print(failure_warning(run) or "", file=sys.stderr)
         return 1
+    if warning := failure_warning(run):
+        print(warning, file=sys.stderr)
     print(voter.summary(run["result"]))
     if run["result"]["fixes"]:
         print("\nFix in the next revision:")
