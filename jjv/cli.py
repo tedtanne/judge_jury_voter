@@ -2,6 +2,7 @@
 
     python -m jjv.cli review docs/design.md --panel "Physics of Compute"
     git diff | python -m jjv.cli review - --discipline code
+    python -m jjv.cli review --url https://example.com/post --panel "Writers' Room"
     python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 
 Live runs call Claude and spend money, up to --max-usd. Run records go to ~/.jjv/runs,
@@ -17,13 +18,15 @@ from pathlib import Path
 
 from jjv import voter
 from jjv.backend import ClaudeBackend
+from jjv.fetch import FetchError, fetch_text
 from jjv.orchestrator import AGGREGATORS, Config, Orchestrator, convene
 
 
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="python -m jjv.cli", description=__doc__.split("\n\n")[0])
     ap.add_argument("mode", choices=["review", "generate"])
-    ap.add_argument("input", help="file holding the subject or brief; - reads stdin")
+    ap.add_argument("input", nargs="?", help="file holding the subject or brief; - reads stdin")
+    ap.add_argument("--url", help="review the text of this web page instead of a file")
     who = ap.add_mutually_exclusive_group(required=True)
     who.add_argument("--panel", help='a preset name, such as "Physics of Compute"')
     who.add_argument("--judges", help="comma-separated archetype ids")
@@ -57,8 +60,17 @@ def progress(event: dict) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if (args.input is None) == (args.url is None):
+        print("error: give exactly one of a file or --url", file=sys.stderr)
+        return 2
     try:
-        text = sys.stdin.read() if args.input == "-" else Path(args.input).read_text()
+        if args.url:
+            text = fetch_text(args.url)
+        else:
+            text = sys.stdin.read() if args.input == "-" else Path(args.input).read_text()
+    except FetchError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
     except (OSError, UnicodeDecodeError) as e:
         print(f"error: cannot read {args.input}: {e}", file=sys.stderr)
         return 2
