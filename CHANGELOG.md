@@ -4,7 +4,11 @@
 
 ### Added
 - **Twelve archetypes and six presets** (`jjv/thinkers.py`), bringing the roster to 58 archetypes and 25 presets. Seven Thinkers are methods of reasoning inspired by historical thinkers: Paradox Hunter, Formalizer, Back-of-Envelope Estimator, Thought Experimenter, Gap Finder, Shadow Reader and Human Consequences Reader. Five gap roles cover areas nobody did: Assumption Tester, Regulatory Reader, Model Evaluator, Distribution Realist and Developmental Editor. None holds a veto, and none has run live.
+- **Negotiation rounds** (`--deliberation-rounds`, default 1). Judges exchange positions, arguments and offers over several Jury rounds. An agreed list replaces the formula if it fits the budget and keeps every credible veto; otherwise the formula decides. Not yet run live.
 - **Next step:** decide what Judges are held to when there is no single truth to check a finding against.
+
+### Changed
+- **Every panel bargains.** The Nash kernel no longer needs Nash_Agent on the panel, so the 13 presets without it stop falling back to a weighted vote. Their fix lists may change, and those runs now count toward reputation. `--aggregator weighted_vote` still selects a plain vote.
 
 ### Removed
 - The list of non-research and personal records from `docs/domain-agents.md`.

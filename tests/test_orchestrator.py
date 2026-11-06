@@ -115,16 +115,17 @@ def test_judges_are_independent_and_the_digest_is_anonymous():
     assert "thermodynamicist" not in stripped
 
 
-def test_broker_is_not_a_player_and_no_broker_means_no_settlement():
+def test_broker_is_not_a_player_and_a_panel_without_it_still_bargains():
     run = review(Fake(), PHYSICS)
     settlement = run["rounds"][0]["settlement"]
     assert run["aliases"]["nash_agent"] not in settlement["gains"]
     assert len(settlement["gains"]) == len(PHYSICS) - 1
 
     fake = Fake()
-    run = review(fake, convene("Docs Crit"))
-    assert "settlement" not in run["rounds"][0]
-    assert "SETTLEMENT" not in " ".join(fake.prompts("jury").values())
+    docs = convene("Docs Crit")
+    run = review(fake, docs)
+    assert len(run["rounds"][0]["settlement"]["gains"]) == len(docs)
+    assert "SETTLEMENT" in " ".join(fake.prompts("jury").values())
 
 
 def test_endorsements_from_the_jury_reach_the_voter():
@@ -271,11 +272,12 @@ def test_a_store_inside_the_repo_is_refused(tmp_path):
         Orchestrator(Fake(), Config(repo=str(tmp_path), store=str(tmp_path / "data")))
 
 
-def test_fallback_to_weighted_vote_is_recorded():
-    run = review(Fake(), convene("Docs Crit"))
-    assert run["rounds"][0]["aggregator"] == "weighted_vote"
-    assert any(e["type"] == "note" for e in run["events"])
+def test_the_aggregator_is_recorded_and_voting_is_still_a_choice():
+    docs = convene("Docs Crit")
+    assert review(Fake(), docs)["rounds"][0]["aggregator"] == "nash_broker"
     assert review(Fake(), PHYSICS)["rounds"][0]["aggregator"] == "nash_broker"
+    voted = review(Fake(), docs, aggregator="weighted_vote")["rounds"][0]
+    assert voted["aggregator"] == "weighted_vote" and "settlement" not in voted
 
 
 def test_digest_fence_is_fresh_and_settlement_sits_outside_it():

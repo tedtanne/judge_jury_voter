@@ -16,7 +16,7 @@ The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs durin
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest -q                                          # 207 unit tests, no API key needed
+pytest -q                                          # 227 unit tests, no API key needed
 python -m jjv.registry > docs/archetypes.md        # regenerate the archetype catalog
 python -m jjv.eval_broker --trials 300 --seed 7    # Nash broker vs weighted vote
 ```
@@ -30,6 +30,7 @@ pip install -r requirements-live.txt
 python -m jjv.cli review design.md --panel "Physics of Compute"
 git diff | python -m jjv.cli review - --discipline code --repo .
 python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
+python -m jjv.cli review plan.md --panel "Thinkers Panel" --deliberation-rounds 3
 ```
 
 ## What's in this repository
@@ -45,7 +46,7 @@ python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 | Orchestrator | Runs SELECT, JUDGE, JURY, VOTE and the generate loop in fixed order, with retries, quorum, spending limit, saved run records and reputation | `jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py` |
 | Voter | Deterministic tally: consensus score, decision by veto policy, ranked findings, dissents | `jjv/voter.py`, `jjv/verdicts.py` |
 | Evaluation | Nash broker vs weighted voting: offline simulation plus a live-comparison hook | `jjv/eval_broker.py` |
-| Tests and CI | 207 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
+| Tests and CI | 227 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
 | Design docs | The full swarm architecture and roadmap, the broker spec, the domain-agent library map, and the catalog | `docs/` |
 
 **Status.** This repository holds the full archetype registry (58 archetypes, 25 presets, every preset member defined), the negotiation layer and its evaluation, the orchestrator, the Voter, and a CLI. Still to come: the FastAPI backend and web UI, and the live broker comparison on real subjects.
@@ -57,8 +58,9 @@ python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 4. Decide the open incentive questions in the Voter and the broker.
 5. Decide what Judges are held to when there is no single truth to check a finding against, which also sets the basis for adding or removing agents.
 6. Test the Thinkers and gap roles on real subjects, starting with the Thinkers Panel on a bold idea. They are built but have never run live.
-7. Add an MCP server, so MCP clients can call the panels: free read-only tools first, then capped `review` and `generate`.
-8. Build the web interface.
+7. Test negotiation rounds live, to see whether the extra cost buys better fix lists.
+8. Add an MCP server, so MCP clients can call the panels: free read-only tools first, then capped `review` and `generate`.
+9. Build the web interface.
 
 Design rationale is in [`docs/architecture.md`](docs/architecture.md). The broker spec is in [`docs/nash-agent.md`](docs/nash-agent.md), the domain archetypes are in [`docs/domain-agents.md`](docs/domain-agents.md), and every archetype and preset is listed in [`docs/archetypes.md`](docs/archetypes.md).
 
@@ -73,7 +75,7 @@ An archetype is one reviewer lens: a persona, a scoring rubric, a weight, and so
 | Thinkers | 7 | Methods of reasoning inspired by historical thinkers, one record per method, not per person. They join through presets. | The Paradox Hunter, The Back-of-Envelope Estimator, The Shadow Reader |
 | Domain roles | 8 | Specialists modeled on a discipline, each with standards drawn from published papers. | The Cryptographer, The Evidence Auditor, The Thermodynamicist |
 | Gap roles | 5 | Roles for areas no other juror covered. | The Assumption Tester, The Regulatory Reader, The Model Evaluator |
-| Broker | 1 | Nash_Agent, which judges a subject and also brokers the Jury round. It holds no veto. | Nash_Agent |
+| Broker | 1 | Nash_Agent, a Judge who scores a subject's incentives. It holds no veto. Bargaining runs on every panel, with or without it. | Nash_Agent |
 
 Twelve archetypes hold a veto, each on one area. For example, the Security Reviewer holds `security` and The Thermodynamicist holds `physical-correctness`.
 
@@ -85,12 +87,16 @@ Every archetype, veto and preset is listed in [`docs/archetypes.md`](docs/archet
 
 ## The Nash_Agent broker in brief
 
+Every panel bargains by default. Use `--aggregator weighted_vote` for a plain vote instead.
+
 1. **Disagreement point.** A blocker raised by a Judge holding a veto for that area is a *credible* threat. It is forced into every outcome. Any other blocker or "reject" is recorded as cheap talk.
 2. **Feasible set.** These are the outcomes that fit the revision budget and leave every veto-holder at least as well off *in its own veto area* as blocking.
 3. **Settlement.** The broker maximizes a weighted Nash product of each Judge's gain over the disagreement point, then breaks ties by a published rule.
 4. **Transparency.** The settlement goes into the Jury digest with the math shown: what is fixed now, what is deferred, whose threats were cheap talk, and each Judge's net gain.
 
 A veto reaches only its holder's area, and each holder weakly prefers the settlement to blocking there, so accepting it is a Nash equilibrium of the ratification step. The broker bargains over *priorities*, never facts: it cannot add, drop, reword or re-score anyone's findings.
+
+**Negotiation.** With `--deliberation-rounds` above 1, Judges talk over several rounds. Each names the fixes it would accept and can send the others an argument or offer. If every Judge names the same list, that list stands and the formula is not used, as long as it fits the budget and includes every credible veto. If they never agree, the formula decides. The default is one round, because each extra round costs about as much as the Jury round again, and whether it helps is unproven.
 
 In the Jury round a Judge can mark its own finding `same_as` another Judge's. Linked findings are fixed as one, so agreement counts and an issue costs the budget once. Each Judge's words stay on record.
 

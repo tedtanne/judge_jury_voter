@@ -121,7 +121,7 @@ These twelve archetypes in `jjv/thinkers.py` come from a review of what the rost
 | Go-to-Market | Distribution Realist, Metering Economist, Customer-Backwards Operator, Value Investor, Assumption Tester, Nash_Agent | Business models and launch plans |
 | Writers' Room | Developmental Editor, Clarity Editor, Technical Writer, Human Consequences Reader, Nash_Agent | Essays, proposals and long documents |
 
-Every one of these presets includes Nash_Agent, so all six settle by bargaining. People bargain over judgment calls too, so this does not depend on findings being calculable.
+Every panel now bargains, with or without Nash_Agent. On these presets it adds a Judge who scores incentives. People bargain over judgment calls too, so this does not depend on findings being calculable.
 
 ## Library housekeeping
 
