@@ -47,6 +47,41 @@ Any service that speaks the OpenAI chat format needs only settings:
 
 `base_url` must be https, except on localhost, so a key is not sent in the clear. Optional fields are `limit_field`, the name of the service's output limit, and `max_output_tokens`.
 
+## MCP server
+
+The server lets Claude Code, Claude Desktop and other MCP clients call JJV. It runs on your machine over stdio:
+
+```bash
+pip install -r requirements-live.txt
+python -m jjv.mcp_server
+```
+
+Most clients take a command and its environment, for example:
+
+```json
+{"mcpServers": {"jjv": {"command": "/path/to/.venv/bin/python",
+                        "args": ["-m", "jjv.mcp_server"],
+                        "cwd": "/path/to/judge_jury_voter",
+                        "env": {"JJV_MCP_PAID": "0"}}}}
+```
+
+**Free tools** never call a model: `list_panels`, `list_archetypes`, `list_providers`, `get_limits`, `get_run`, and `settle`, which replays the bargain on a saved run at a different budget.
+
+**Paid tools** are `review` and `generate`. An AI client would be choosing when to spend, so they are off unless you set `JJV_MCP_PAID=1`. Each returns a job id at once, and `get_run` reports progress. `review` takes `consult_models` to ask several providers first.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `JJV_MCP_DEFAULT_USD` | 1 | Limit for a run that names none |
+| `JJV_MCP_MAX_USD` | 5 | Most any one run may be given |
+| `JJV_MCP_TOTAL_USD` | 20 | Most the server may commit before it restarts |
+| `JJV_MCP_MAX_JOBS` | 2 | Runs at once |
+| `JJV_MCP_REPOS` | none | `name=/path` pairs Judges may read |
+| `JJV_JUDGE_PROVIDER` | none | Run Judges on this provider |
+| `JJV_PROVIDERS_FILE` | `~/.jjv/providers.json` | Models and prices |
+| `JJV_STORE` | `~/.jjv/runs` | Run records |
+
+A client cannot change these. Limits are soft, because a model call in flight finishes, so a run can pass its limit somewhat. The total allowance resets when the server restarts. Links from a client must resolve to public addresses, though a name that changes address between the check and the fetch can still get past this. Findings can quote the subject, so a client should treat them as data, not instructions.
+
 ## For developers
 
 `jjv/harness.py` is the layer the CLI uses, and it is where an MCP server or web view should connect: `load_providers`, `consult`, `with_opinions` and `make_backend`. Each backend has the same `ask(Request) -> Reply`, so it can be passed to `Orchestrator`.

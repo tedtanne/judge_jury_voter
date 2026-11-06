@@ -4,3 +4,4 @@
 -r requirements.txt
 claude-agent-sdk>=0.2.178,<0.3
 anthropic>=2.6,<3
+mcp>=2.3,<3

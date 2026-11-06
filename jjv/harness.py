@@ -17,11 +17,13 @@ keys come from the environment only, and never reach a prompt, a record or an er
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import os
 import random
 import re
 import secrets
+import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -279,6 +281,15 @@ async def consult(subject: str, providers: list[Provider], *, max_usd: float,
         return Opinion(provider.name, provider.model, str(reply.data), reply.cost)
 
     return await asyncio.gather(*(one(p) for p in providers))
+
+
+def save_opinions(store: str, run: dict, opinions: list[Opinion], labels: dict) -> None:
+    """Keep each model's words and which label it had, beside the run record."""
+    record = {"labels": labels, "opinions": [dataclasses.asdict(o) for o in opinions]}
+    try:
+        (Path(store) / f"{run['id']}.opinions.json").write_text(json.dumps(record, indent=1))
+    except OSError as e:
+        print(f"could not save the model answers: {e}", file=sys.stderr)
 
 
 def with_opinions(subject: str, opinions: list[Opinion],
