@@ -41,6 +41,8 @@ While a run works, status lines show elapsed time, money spent, the step (`2/4 J
 
 `suggest` makes one small model call with no tools, and only prints a recommendation. Its costs are rough, based on a few runs, and improve as clean runs are saved. It has been tried on only four samples.
 
+[`docs/reading-a-run.md`](docs/reading-a-run.md) explains every line, with a real example.
+
 ### Ways to run JJV
 
 The native way needs no harness, no MCP server and no settings file. The others are optional, and only apply when you ask for them.
