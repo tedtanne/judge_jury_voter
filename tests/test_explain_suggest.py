@@ -314,3 +314,14 @@ def test_mcp_clients_see_step_waiting_and_convergence(tmp_path):
         return svc.get_run(job["job_id"])
     view = asyncio.run(go())
     assert view["step"] and view["waiting_on"] == [] and len(view["convergence"]) >= 2
+
+
+def test_the_fix_list_line_counts_what_was_actually_chosen():
+    def script(kind, aid, req):
+        reply = reply_for(aid, findings=[finding(f"{aid}-a")])
+        if kind == "jury":
+            reply["fix_list"] = ["A-1"]
+        return reply
+    run = review(Fake(script), DOCS, deliberation_rounds=2)
+    line = [e for e in status_of(run) if e["stage"] == "fix_list"][0]
+    assert line["final"] == 1

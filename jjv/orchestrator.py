@@ -466,10 +466,10 @@ class Orchestrator:
             rec["settlement"] = dataclasses.asdict(settlement)
             # The formula's answer stays on record beside any agreement, for comparison.
             rec["settled_by"] = "agreement" if "agreed" in rec else "formula"
+            chosen = rec.get("agreed", settlement.address_now)
             if "proposal" in rec:
                 self._emit(run, "convergence", **E.fix_list_view(
-                    rec["proposal"]["address_now"], settlement.address_now))
-            chosen = rec.get("agreed", settlement.address_now)
+                    rec["proposal"]["address_now"], chosen))
         elif players:
             chosen = weighted_vote_select(players, self.config.revision_budget)
         result["fixes"] = [f for f in result["findings"] if _key(f) in set(chosen)]
