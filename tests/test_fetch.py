@@ -7,7 +7,7 @@ from email.message import Message
 import pytest
 
 from jjv import cli, fetch
-from jjv.fetch import FetchError, fetch_text, html_to_text
+from jjv.fetch import FetchError, fetch_text, html_to_text, read_html
 
 
 class Page(io.BytesIO):
@@ -53,6 +53,79 @@ def test_void_tags_inside_skipped_blocks_do_not_leak_text():
 def test_equations_drawn_as_images_keep_their_text():
     text = html_to_text('<p>dissipates at least <img src="f.png" alt="k_{B}T\\ln 2"> of energy</p>')
     assert text == "dissipates at least k_{B}T\\ln 2 of energy"
+
+
+def test_old_mathjax_scripts_keep_their_latex():
+    page = read_html('<p>energy <script type="math/tex">E = mc^2</script> here</p>'
+                     '<script>evil()</script>')
+    assert page.text == "energy E = mc^2 here" and page.formulas == 1
+
+
+def test_mathml_uses_its_tex_annotation_and_not_the_symbols():
+    html = """<p>so <math><semantics><mrow><mi>x</mi></mrow>
+        <annotation encoding="application/x-tex">x^2</annotation></semantics></math> holds</p>"""
+    page = read_html(html)
+    assert page.text == "so x^2 holds" and page.formulas == 1 and page.lost == 0
+
+
+def test_mathml_falls_back_to_alttext():
+    assert read_html('<p><math alttext="a+b"><mi>a</mi></math></p>').text == "a+b"
+
+
+def test_wikipedia_keeps_tex_in_a_json_attribute():
+    html = """<p>so <math data-mw='{"name":"math","body":{"extsrc":"E \\\\geq k T"}}'><mi>E</mi></math></p>"""
+    assert read_html(html).text == "so E \\geq k T"
+
+
+def test_katex_is_read_once():
+    html = """<p>Let <span class="katex"><span class="katex-mathml"><math><semantics><mrow/>
+        <annotation encoding="application/x-tex">\\pi r^2</annotation></semantics></math></span>
+        <span class="katex-html" aria-hidden="true"><span>πr2</span></span></span> be area</p>"""
+    page = read_html(html)
+    assert "\\pi r^2" in page.text and "πr2" not in page.text and page.formulas == 1
+
+
+def test_wikipedia_style_math_is_read_once():
+    html = """<p><span class="mwe-math-element"><math alttext="{\\displaystyle x}"><mi>x</mi></math>
+        <img class="mwe-math-fallback-image-inline" alt="{\\displaystyle x}" src="a.svg"></span></p>"""
+    page = read_html(html)
+    assert page.text.count("displaystyle") == 1 and page.formulas == 1
+
+
+def test_formula_images_without_text_are_counted_as_lost():
+    page = read_html('<p>at least <img class="ql-img-inline-formula" src="f.png"> of energy</p>')
+    assert page.lost == 1 and "[formula not readable]" in page.text
+    assert "1 of 1 formulas" in page.math_warning()
+
+
+def test_mathml_with_no_tex_is_lost_not_garbled():
+    page = read_html("<p><math><mi>x</mi><mo>+</mo></math></p>")
+    assert page.lost == 1 and page.text == "[formula not readable]"
+
+
+def test_ordinary_images_are_not_counted_as_formulas():
+    page = read_html('<p><img src="cat.png" alt="a cat"></p>')
+    assert page.text == "a cat" and page.formulas == 0 and page.math_warning() is None
+
+
+def test_a_page_drawing_math_with_javascript_is_flagged():
+    page = read_html('<script src="mathjax.js"></script><p>the sum of the terms</p>')
+    assert "JavaScript" in page.math_warning()
+    typed = read_html('<script src="mathjax.js"></script><p>so \\(x^2\\) holds</p>')
+    assert typed.math_warning() is None
+
+
+def test_cli_stops_before_spending_when_math_is_lost(monkeypatch, capsys):
+    serve(monkeypatch, Page(b'<p>word <img class="latex" src="a.png"> word</p>'))
+    assert cli.main(["review", "--url", "https://x.test/a", "--panel", "Docs Crit"]) == 2
+    err = capsys.readouterr().err
+    assert "Nothing was spent" in err and "--allow-lost-math" in err
+
+
+def test_judges_are_told_broken_text_may_be_extraction():
+    from jjv.orchestrator import judge_prompt
+    from jjv.registry import get
+    assert "fault\nin extraction" in judge_prompt(get("simplifier"), "s", "t", False)
 
 
 def test_reader_comments_are_not_part_of_the_post():

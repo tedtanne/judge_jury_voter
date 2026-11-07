@@ -25,7 +25,7 @@ from pathlib import Path
 from jjv import voter
 from jjv.backend import BackendError, ClaudeBackend
 from jjv.explain import explain, step_label
-from jjv.fetch import FetchError, fetch_text
+from jjv.fetch import FetchError, fetch_page
 from jjv.harness import consult, load_providers, make_backend, save_opinions, with_opinions
 from jjv.orchestrator import AGGREGATORS, Config, Orchestrator, convene
 from jjv.suggest import budget_warning, render, suggest_panel
@@ -37,6 +37,8 @@ def parser() -> argparse.ArgumentParser:
     ap.add_argument("input", nargs="?", help="file holding the subject or brief; - reads "
                     "stdin. For explain, a run id")
     ap.add_argument("--url", help="review the text of this web page instead of a file")
+    ap.add_argument("--allow-lost-math", action="store_true",
+                    help="run even if formulas could not be read from the content")
     who = ap.add_mutually_exclusive_group()
     who.add_argument("--panel", help='a preset name, such as "Physics of Compute"')
     who.add_argument("--judges", help="comma-separated archetype ids")
@@ -229,8 +231,16 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.url:
             print(f"fetching {args.url}", file=sys.stderr, flush=True)
-            text = fetch_text(args.url)
-            print(f"  read {len(text.split()):,} words", file=sys.stderr, flush=True)
+            page = fetch_page(args.url)
+            text = page.text
+            print(f"  read {len(text.split()):,} words, {page.formulas} formulas",
+                  file=sys.stderr, flush=True)
+            if warning := page.math_warning():
+                if not args.allow_lost_math:
+                    print(f"error: {warning} Nothing was spent. Use --allow-lost-math to run "
+                          "anyway.", file=sys.stderr)
+                    return 2
+                print(f"WARNING: {warning}", file=sys.stderr)
         else:
             text = sys.stdin.read() if args.input == "-" else Path(args.input).read_text()
     except FetchError as e:
