@@ -229,3 +229,21 @@ def test_review_warns_before_spending_when_the_limit_looks_too_small(tmp_path, m
     assert cli.main(["review", str(subject), "--panel", "Docs Crit", "--max-usd", "1",
                      "--store", str(tmp_path / "r")]) == 0
     assert "WARNING: this run may need" in capsys.readouterr().err
+
+
+def test_a_quiet_run_still_prints_that_it_is_alive(capsys):
+    import time
+    with cli.Progress(heartbeat_s=0.05) as progress:
+        progress({"type": "note", "text": "asking 2 Judges", "expected": 2, "cost_usd": 0.5,
+                  "phase": "JUDGE"})
+        time.sleep(0.2)
+    err = capsys.readouterr().err
+    assert "still working on JUDGE, 0/2 reported" in err and "$ 0.50" in err
+
+
+def test_the_heartbeat_stops_when_the_run_ends(capsys):
+    import time
+    with cli.Progress(heartbeat_s=0.05):
+        pass
+    time.sleep(0.15)
+    assert capsys.readouterr().err == ""

@@ -18,6 +18,7 @@ import asyncio
 import json
 import re
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -66,15 +67,41 @@ def parser() -> argparse.ArgumentParser:
 
 
 class Progress:
-    """One status line per event, with elapsed time and money spent so far."""
+    """One status line per event, with elapsed time and money spent so far.
 
-    def __init__(self):
+    Used as a context manager, it also prints a line when nothing has happened for a while,
+    because a Judge can think for a minute and a silent terminal looks frozen.
+    """
+
+    def __init__(self, heartbeat_s: float = 15.0):
         self.start = time.monotonic()
         self.expected = 0
         self.reported = 0
+        self.heartbeat_s = heartbeat_s
+        self.quiet_since = self.start
+        self.spent = 0.0
+        self.phase = "starting"
+        self.finished = threading.Event()
+        self.ticker = threading.Thread(target=self._tick, daemon=True)
+
+    def __enter__(self):
+        self.ticker.start()
+        return self
+
+    def __exit__(self, *exc):
+        self.finished.set()
+        self.ticker.join()
+
+    def _tick(self) -> None:
+        while not self.finished.wait(self.heartbeat_s / 3):
+            if time.monotonic() - self.quiet_since >= self.heartbeat_s:
+                waiting = (f", {self.reported}/{self.expected} reported"
+                           if self.expected and self.reported < self.expected else "")
+                self.line({"cost_usd": self.spent}, f"  still working on {self.phase}{waiting}")
 
     def line(self, event: dict, text: str) -> None:
-        seconds = int(time.monotonic() - self.start)
+        self.quiet_since = time.monotonic()
+        seconds = int(self.quiet_since - self.start)
         print(f"{seconds // 60:02d}:{seconds % 60:02d}  ${event.get('cost_usd', 0):5.2f}  {text}",
               file=sys.stderr, flush=True)
 
@@ -83,6 +110,8 @@ class Progress:
 
     def __call__(self, event: dict) -> None:
         kind = event["type"]
+        self.spent = event.get("cost_usd", self.spent)
+        self.phase = event.get("phase", self.phase)
         if kind == "phase":
             self.line(event, f"[{step_label(event['phase'])}]")
         elif kind == "verdict":
@@ -199,7 +228,8 @@ def main(argv: list[str] | None = None) -> int:
                     deliberation_rounds=args.deliberation_rounds,
                     threshold=args.threshold)
     try:
-        orchestrator = Orchestrator(judge_backend(args), config, Progress())
+        progress = Progress()
+        orchestrator = Orchestrator(judge_backend(args), config, progress)
         entry = orchestrator.review if args.mode == "review" else orchestrator.generate
         opinions, labels = [], {}
         if args.consult:
@@ -212,7 +242,8 @@ def main(argv: list[str] | None = None) -> int:
                                      rounds=args.deliberation_rounds, store=args.store)
             if warning:
                 print(warning, file=sys.stderr)
-        run = asyncio.run(entry(text, panel))
+        with progress:
+            run = asyncio.run(entry(text, panel))
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
         return 2

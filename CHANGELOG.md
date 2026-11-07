@@ -16,7 +16,7 @@
 - **`suggest`** recommends one to three panels, or says none fits, with rough costs and a command built by code. One small model call, with no tools. Revised after a JJV review of the proposal: `--panel auto` and an MCP tool are left for later.
 - **`--explain` and `explain RUN_ID`** show how each section reached its result, with the sums written out. Free on a saved run. MCP clients get `explain_run`.
 - **Budget warning.** `review` warns before spending when `--max-usd` looks too small. Estimates ignore runs that failed or hit their limit.
-- **Status lines** now show the step and how many Judges have reported.
+- **Status lines** now show the step and how many Judges have reported, and a heartbeat line appears during quiet stretches.
 
 ### Changed
 - **Every panel bargains.** The Nash kernel no longer needs Nash_Agent on the panel, so the 13 presets without it stop falling back to a weighted vote. Their fix lists may change, and those runs now count toward reputation. `--aggregator weighted_vote` still selects a plain vote.
