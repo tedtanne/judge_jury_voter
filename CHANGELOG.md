@@ -15,6 +15,9 @@
 
 - **`suggest`** recommends one to three panels, or says none fits, with rough costs and a command built by code. One small model call, with no tools. Revised after a JJV review of the proposal: `--panel auto` and an MCP tool are left for later.
 - **`--explain` and `explain RUN_ID`** show how each section reached its result, with the sums written out. Free on a saved run. MCP clients get `explain_run`.
+- **`--json`** returns the result as data for an app, with a content `fingerprint`, on `review`, `generate`, `suggest` and `explain`.
+- **Results are reused** when the same content is reviewed with the same panel and settings, so asking twice costs nothing. Failed runs, runs that lost a Judge and `--repo` runs are never reused. `--no-cache` runs again.
+- **Fixed:** a negotiating Judge that named no fix list crashed the run. It now counts as not agreeing.
 - **More math survives.** Web pages keep formulas from MathJax scripts, MathML, KaTeX and Wikipedia. A run stops before spending if formulas cannot be read, unless `--allow-lost-math` is set, and Judges are told broken text may be an extraction fault.
 - **PDF, Word, PowerPoint and Excel** through optional Docling (`jjv/parse.py`, `requirements-parse.txt`), from a file or, for PDFs, a link. MegaParse was tried first and returned empty text.
 - **`docs/reading-a-run.md`** explains the status lines, convergence lines, result and `--explain` output, using a real run.

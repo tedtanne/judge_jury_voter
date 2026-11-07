@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Callable
 
 from jjv import registry
+from jjv.cache import cache_key, fingerprint, lookup, remember
 from jjv.explain import explain, step_label
 from jjv.fetch import FetchError, fetch_text
 from jjv.harness import (HarnessError, consult, load_providers, make_backend, save_opinions,
@@ -256,6 +257,18 @@ class Service:
                 raise ToolError("repos need the Claude Agent SDK backend")
         if not 1 <= deliberation_rounds <= 5:
             raise ToolError("deliberation_rounds must be from 1 to 5")
+        key = None
+        if text.strip() and not path:
+            d = Config()
+            key = cache_key(mode, fingerprint(text), judges, aggregator=d.aggregator,
+                            jury=d.jury, deliberation_rounds=deliberation_rounds,
+                            revision_budget=d.revision_budget, model=d.model,
+                            judge_provider=limits.judge_provider,
+                            consult=sorted(consult_models) if consult_models else None,
+                            max_rounds=d.max_rounds, threshold=d.threshold)
+            if hit := lookup(self.store, key):
+                return {"job_id": None, "run_id": hit["id"], "status": "done", "cached": True,
+                        "spent_usd": 0.0, "next": "call get_run with this run_id"}
         config = Config(store=self.store, max_usd=run_usd, repo=path,
                         deliberation_rounds=deliberation_rounds)
         job = Job(secrets.token_hex(6), mode, total)
@@ -263,7 +276,7 @@ class Service:
         self.committed += total
         self.jobs[job.id] = job
         job.task = asyncio.create_task(self._run(
-            job, orchestrator, judges, text, url.strip(), consult_models or [], consult_usd))
+            job, orchestrator, judges, text, url.strip(), consult_models or [], consult_usd, key))
         return {"job_id": job.id, "status": "running", "limit_usd": total,
                 "next": "call get_run with this id"}
 
@@ -281,7 +294,7 @@ class Service:
             job.waiting.remove(event["archetype_id"])
 
     async def _run(self, job: Job, orchestrator: Orchestrator, judges: list, text: str, url: str,
-                   models: list[str], consult_usd: float) -> None:
+                   models: list[str], consult_usd: float, key: str | None = None) -> None:
         spent = 0.0
         opinions, labels = [], {}
         try:
@@ -302,6 +315,8 @@ class Service:
             job.run_id, job.status, job.error = run["id"], run["status"], run.get("error")
             if opinions:
                 save_opinions(self.store, run, opinions, labels)
+            if key:
+                remember(self.store, key, run)
         except (FetchError, ValueError) as e:     # HarnessError is a ValueError
             job.status, job.error = "failed", str(e)
         except Exception as e:
