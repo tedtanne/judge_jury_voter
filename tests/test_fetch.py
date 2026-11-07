@@ -123,7 +123,7 @@ def test_cli_reports_a_bad_link_before_spending(monkeypatch, capsys):
 def test_status_lines_show_time_and_money(capsys):
     cli.Progress()({"type": "phase", "phase": "JURY", "cost_usd": 1.5})
     err = capsys.readouterr().err
-    assert "$ 1.50" in err and "[JURY]" in err and err.startswith("00:00")
+    assert "$ 1.50" in err and "[3/4 JURY]" in err and err.startswith("00:00")
 
 
 def test_failed_judges_produce_a_plain_warning():

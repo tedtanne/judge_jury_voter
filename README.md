@@ -16,7 +16,7 @@ The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs durin
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest -q                                          # 318 unit tests, no API key needed
+pytest -q                                          # 348 unit tests, no API key needed
 python -m jjv.registry > docs/archetypes.md        # regenerate the archetype catalog
 python -m jjv.eval_broker --trials 300 --seed 7    # Nash broker vs weighted vote
 ```
@@ -31,9 +31,15 @@ python -m jjv.cli review design.md --panel "Physics of Compute"
 git diff | python -m jjv.cli review - --discipline code --repo .
 python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
 python -m jjv.cli review plan.md --panel "Thinkers Panel" --deliberation-rounds 3
+python -m jjv.cli suggest --url https://example.com/post   # recommend a panel and a budget
 python -m jjv.cli review --url https://example.com/post --panel "Paper Review"
+python -m jjv.cli explain RUN_ID                           # how a saved run reached its result, free
 python -m jjv.cli review plan.md --panel "Thinkers Panel" --consult claude,openai,xai,gemini
 ```
+
+While a run works, status lines show elapsed time, money spent, the step (`2/4 JUDGE`) and how many Judges have reported. `review` warns first if `--max-usd` looks too small. Add `--explain` to see how each section reached its output, with the sums written out.
+
+`suggest` makes one small model call with no tools, and only prints a recommendation. Its costs are rough, based on a few runs, and improve as clean runs are saved. It has been tried on only four samples.
 
 ### Ways to run JJV
 
@@ -63,7 +69,7 @@ The native way needs no harness, no MCP server and no settings file. The others 
 | Orchestrator | Runs SELECT, JUDGE, JURY, VOTE and the generate loop in fixed order, with retries, quorum, spending limit, saved run records and reputation | `jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py` |
 | Voter | Deterministic tally: consensus score, decision by veto policy, ranked findings, dissents | `jjv/voter.py`, `jjv/verdicts.py` |
 | Evaluation | Nash broker vs weighted voting: offline simulation plus a live-comparison hook | `jjv/eval_broker.py` |
-| Tests and CI | 318 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
+| Tests and CI | 348 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
 | Design docs | The full swarm architecture and roadmap, the broker spec, the domain-agent library map, and the catalog | `docs/` |
 
 **Status.** This repository holds the full archetype registry (58 archetypes, 25 presets, every preset member defined), the negotiation layer and its evaluation, the orchestrator, the Voter, and a CLI. Still to come: the FastAPI backend and web UI, and the live broker comparison on real subjects.

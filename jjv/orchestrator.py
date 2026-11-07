@@ -324,7 +324,7 @@ class Orchestrator:
 
     async def _judge(self, run: dict, rec: dict, panel: list[dict], subject: str) -> list[dict]:
         self._enter(run, "JUDGE")
-        self._emit(run, "note", text=f"asking {len(panel)} Judges")
+        self._emit(run, "note", text=f"asking {len(panel)} Judges", expected=len(panel))
         tag = f"subject-{secrets.token_hex(4)}"     # unguessable, so it cannot be closed
         cap = self._cap(run, len(panel))
         jobs = []
@@ -386,7 +386,8 @@ class Orchestrator:
             rec["deliberation"] = []
         for number in range(1, rounds + 1):
             self._emit(run, "note", text=f"round {number} of {rounds}: "
-                                         f"{len(current)} Judges deliberating")
+                                         f"{len(current)} Judges deliberating",
+                       expected=len(current))
             settlement_text = None
             if brokered and self._bargainers(current):
                 # Findings stay unlinked between rounds so each Judge keeps its own ids.

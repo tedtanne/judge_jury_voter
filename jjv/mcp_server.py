@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Callable
 
 from jjv import registry
+from jjv.explain import explain
 from jjv.fetch import FetchError, fetch_text
 from jjv.harness import (HarnessError, consult, load_providers, make_backend, save_opinions,
                          with_opinions)
@@ -188,6 +189,10 @@ class Service:
             view["draft"] = run["draft"]
         return view
 
+    def explain_run(self, run_id: str) -> str:
+        """How each section of a saved run reached its result. No model calls."""
+        return explain(self._load(run_id))
+
     def settle(self, run_id: str, revision_budget: float) -> dict:
         """Re-run the bargain on a saved run at another budget. No model calls."""
         if not 0 < revision_budget <= 1000:
@@ -331,6 +336,11 @@ def build_server(service: Service):
                              "or a run id. Free. " + DATA_NOTE)
     def get_run(run_id: str, findings: int = 10) -> dict:
         return answer(service.get_run, run_id, findings)
+
+    @server.tool(description="Show how each section of a saved run reached its result, "
+                             "with the sums written out. Free.")
+    def explain_run(run_id: str) -> dict:
+        return answer(lambda: {"explanation": service.explain_run(run_id)})
 
     @server.tool(description="Re-run the Nash bargain on a saved run at a different revision "
                              "budget, to see what would be fixed. No model calls, free.")

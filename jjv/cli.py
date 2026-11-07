@@ -4,6 +4,8 @@
     git diff | python -m jjv.cli review - --discipline code
     python -m jjv.cli review --url https://example.com/post --panel "Writers' Room"
     python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
+    python -m jjv.cli suggest --url https://example.com/post
+    python -m jjv.cli explain RUN_ID
 
 Live runs call Claude and spend money, up to --max-usd. Run records go to ~/.jjv/runs,
 outside any repo, because Judges must not be able to read them.
@@ -13,28 +15,35 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
+import re
 import sys
 import time
 from pathlib import Path
 
 from jjv import voter
-from jjv.backend import ClaudeBackend
+from jjv.backend import BackendError, ClaudeBackend
+from jjv.explain import explain, step_label
 from jjv.fetch import FetchError, fetch_text
 from jjv.harness import consult, load_providers, make_backend, save_opinions, with_opinions
 from jjv.orchestrator import AGGREGATORS, Config, Orchestrator, convene
+from jjv.suggest import budget_warning, render, suggest_panel
 
 
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="python -m jjv.cli", description=__doc__.split("\n\n")[0])
-    ap.add_argument("mode", choices=["review", "generate"])
-    ap.add_argument("input", nargs="?", help="file holding the subject or brief; - reads stdin")
+    ap.add_argument("mode", choices=["review", "generate", "suggest", "explain"])
+    ap.add_argument("input", nargs="?", help="file holding the subject or brief; - reads "
+                    "stdin. For explain, a run id")
     ap.add_argument("--url", help="review the text of this web page instead of a file")
-    who = ap.add_mutually_exclusive_group(required=True)
+    who = ap.add_mutually_exclusive_group()
     who.add_argument("--panel", help='a preset name, such as "Physics of Compute"')
     who.add_argument("--judges", help="comma-separated archetype ids")
     who.add_argument("--discipline", help="auto-convene the defaults for a discipline")
     ap.add_argument("--repo", help="let Judges read this directory")
     ap.add_argument("--no-jury", action="store_true", help="skip the deliberation round")
+    ap.add_argument("--explain", action="store_true",
+                    help="after the result, show how each section reached its output")
     ap.add_argument("--aggregator", choices=AGGREGATORS, default="nash_broker")
     ap.add_argument("--deliberation-rounds", type=int, default=1,
                     help="Jury rounds; above 1, Judges negotiate and cost rises with each round")
@@ -61,23 +70,32 @@ class Progress:
 
     def __init__(self):
         self.start = time.monotonic()
+        self.expected = 0
+        self.reported = 0
 
     def line(self, event: dict, text: str) -> None:
         seconds = int(time.monotonic() - self.start)
         print(f"{seconds // 60:02d}:{seconds % 60:02d}  ${event.get('cost_usd', 0):5.2f}  {text}",
               file=sys.stderr, flush=True)
 
+    def count(self) -> str:
+        return f"{self.reported}/{self.expected} " if self.expected else ""
+
     def __call__(self, event: dict) -> None:
         kind = event["type"]
         if kind == "phase":
-            self.line(event, f"[{event['phase']}]")
+            self.line(event, f"[{step_label(event['phase'])}]")
         elif kind == "verdict":
-            self.line(event, f"  {event['archetype_id']}: {event['recommendation']} "
-                             f"({event['overall']:g}/5)")
+            self.reported += 1
+            self.line(event, f"  {self.count()}{event['archetype_id']}: "
+                             f"{event['recommendation']} ({event['overall']:g}/5)")
         elif kind == "note":
+            if "expected" in event:
+                self.expected, self.reported = event["expected"], 0
             self.line(event, f"  {event['text']}")
         elif kind == "failure":
-            self.line(event, f"  {event['archetype_id']} FAILED: {event['error']}")
+            self.reported += 1
+            self.line(event, f"  {self.count()}{event['archetype_id']} FAILED: {event['error']}")
         elif kind == "settlement":
             self.line(event, f"  settlement proposes {len(event['address_now'])} fixes")
         elif kind == "vote":
@@ -116,8 +134,42 @@ def gather_opinions(args, text: str) -> tuple[list, str, dict]:
     return opinions, subject, labels
 
 
+def explain_saved(args) -> int:
+    run_id = args.input or ""
+    if not re.fullmatch(r"[0-9a-f]{12}", run_id):
+        print("error: explain needs a run id", file=sys.stderr)
+        return 2
+    try:
+        run = json.loads((Path(args.store) / f"{run_id}.json").read_text())
+    except (OSError, ValueError) as e:
+        print(f"error: cannot read run {run_id}: {e}", file=sys.stderr)
+        return 2
+    print(explain(run), end="")
+    return 0
+
+
+def run_suggest(args, text: str) -> int:
+    if not text.strip():
+        print("error: nothing to read: the content is blank", file=sys.stderr)
+        return 2
+    try:
+        backend = judge_backend(args)
+        result, cost = asyncio.run(suggest_panel(text, backend))
+    except (ValueError, BackendError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    if args.url:
+        source = ["--url", args.url]
+    else:
+        source = [] if args.input == "-" else [args.input]
+    print(render(result, text, source, cost=cost, store=args.store), end="")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.mode == "explain":
+        return explain_saved(args)
     if (args.input is None) == (args.url is None):
         print("error: give exactly one of a file or --url", file=sys.stderr)
         return 2
@@ -132,6 +184,8 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, UnicodeDecodeError) as e:
         print(f"error: cannot read {args.input}: {e}", file=sys.stderr)
         return 2
+    if args.mode == "suggest":
+        return run_suggest(args, text)
     try:
         panel = convene(args.panel, args.judges.split(",") if args.judges else None,
                         args.discipline)
@@ -152,6 +206,12 @@ def main(argv: list[str] | None = None) -> int:
             if args.mode != "review":
                 raise ValueError("--consult works with review only")
             opinions, text, labels = gather_opinions(args, text)
+        if not args.repo and args.mode == "review":
+            # With --repo, Judges read more than the subject, so length says too little.
+            warning = budget_warning(len(text), len(panel), args.max_usd, jury=not args.no_jury,
+                                     rounds=args.deliberation_rounds, store=args.store)
+            if warning:
+                print(warning, file=sys.stderr)
         run = asyncio.run(entry(text, panel))
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
@@ -175,6 +235,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.out:
             Path(args.out).write_text(run["draft"])
     print(f"\nRun {run['id']}: ${run['cost_usd']:.2f}, saved in {args.store}/")
+    if args.explain:
+        print("\n" + explain(run), end="")
     return 0
 
 
