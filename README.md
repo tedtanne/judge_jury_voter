@@ -13,6 +13,16 @@ The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs durin
 
 ## Quick start
 
+Install only what you need. Each line includes the ones above it.
+
+| You want to | Install | Size |
+|---|---|---|
+| Run the tests and the broker evaluation | `pip install -r requirements.txt` | Small |
+| Review code, text and web pages with real models | `pip install -r requirements-live.txt` | Small |
+| Also review PDF, Word, PowerPoint and Excel files | `pip install -r requirements-parse.txt` | About 1.5 GB, plus about 1 GB of models on first use |
+
+Without the last one, everything else still works, and a document file stops with a message saying what to install. If you set up JJV on another computer, or delete the `.venv` folder, install again.
+
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
