@@ -17,6 +17,7 @@ from html.parser import HTMLParser
 from urllib.parse import urlparse
 
 MAX_BYTES = 5_000_000
+MAX_PDF_BYTES = 50_000_000
 TIMEOUT_S = 30
 _SKIP = {"script", "style", "noscript", "template", "svg", "nav", "footer", "form", "aside"}
 _VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param",
@@ -142,6 +143,7 @@ class Page:
     formulas: int = 0
     lost: int = 0
     needs_scripts: bool = False
+    note: str | None = None
 
     def math_warning(self) -> str | None:
         if self.lost:
@@ -212,11 +214,15 @@ def fetch_page(url: str, public_only: bool = False) -> Page:
                 raise FetchError(f"link redirected away from the web: {response.geturl()}")
             kind = response.headers.get_content_type()
             charset = response.headers.get_content_charset() or "utf-8"
-            raw = response.read(MAX_BYTES + 1)
+            limit = MAX_PDF_BYTES if kind == "application/pdf" else MAX_BYTES
+            raw = response.read(limit + 1)
     except (urllib.error.URLError, OSError, ValueError) as e:
         raise FetchError(f"cannot fetch {url}: {e}") from e
-    if len(raw) > MAX_BYTES:
-        raise FetchError(f"page is larger than {MAX_BYTES:,} bytes: {url}")
+    if len(raw) > limit:
+        raise FetchError(f"page is larger than {limit:,} bytes: {url}")
+    if kind == "application/pdf":
+        from jjv.parse import parse_bytes
+        return parse_bytes(raw, ".pdf", url)
     if kind not in ("text/html", "application/xhtml+xml") and not kind.startswith("text/"):
         raise FetchError(f"cannot review content of type {kind}: {url}")
     try:

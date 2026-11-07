@@ -6,7 +6,7 @@ from email.message import Message
 
 import pytest
 
-from jjv import cli, fetch
+from jjv import cli, fetch, parse
 from jjv.fetch import FetchError, fetch_text, html_to_text, read_html
 
 
@@ -157,9 +157,21 @@ def test_a_redirect_off_the_web_is_refused(monkeypatch):
         fetch_text("https://x.test/a")
 
 
-def test_a_pdf_is_refused_with_a_clear_message(monkeypatch):
+def test_a_pdf_link_goes_to_the_parser(monkeypatch):
     serve(monkeypatch, Page(b"%PDF", "application/pdf"))
-    with pytest.raises(FetchError, match="application/pdf"):
+    seen = []
+
+    def convert(data, suffix, name):
+        seen.append((data, suffix))
+        return parse.to_page("the text", name)
+    monkeypatch.setattr(parse, "parse_bytes", convert)
+    assert fetch_text("https://x.test/a") == "the text"
+    assert seen == [(b"%PDF", ".pdf")]
+
+
+def test_other_binary_links_are_refused(monkeypatch):
+    serve(monkeypatch, Page(b"PK", "application/zip"))
+    with pytest.raises(FetchError, match="application/zip"):
         fetch_text("https://x.test/a")
 
 
@@ -203,3 +215,40 @@ def test_failed_judges_produce_a_plain_warning():
     assert cli.failure_warning({"failures": []}) is None
     text = cli.failure_warning({"failures": [{"phase": "JURY"}, {"phase": "JURY"}]})
     assert "2 Judge call(s)" in text and "JURY" in text and "--max-usd" in text
+
+
+def test_a_parsed_document_reports_its_formulas():
+    page = parse.to_page("Intro\n\n$$x^2$$\n\n<!-- formula-not-decoded -->", "a.pdf")
+    assert page.formulas == 2 and page.lost == 1
+    assert "[formula not readable]" in page.text and "may contain small errors" in page.note
+    assert "1 of 2 formulas" in page.math_warning()
+
+
+def test_a_document_with_no_math_has_no_warning():
+    page = parse.to_page("Just words", "a.docx")
+    assert page.note is None and page.math_warning() is None
+
+
+def test_an_empty_parse_is_an_error_not_a_blank_review():
+    with pytest.raises(FetchError, match="no readable text"):
+        parse.parse_file("a.pdf", convert=lambda path: "   ")
+
+
+def test_only_known_document_types_go_to_the_parser():
+    assert parse.can_parse("a.PDF") and parse.can_parse("b.docx")
+    assert not parse.can_parse("c.md") and not parse.can_parse("d.py")
+
+
+def test_missing_parser_says_how_to_install_it(monkeypatch):
+    monkeypatch.setitem(__import__("sys").modules, "docling.document_converter", None)
+    with pytest.raises(FetchError, match="requirements-parse.txt"):
+        parse._convert("a.pdf")
+
+
+def test_cli_stops_before_spending_on_a_document_with_lost_math(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "parse_file",
+                        lambda path: parse.to_page("words <!-- formula-not-decoded -->", path))
+    path = tmp_path / "a.pdf"
+    path.write_bytes(b"x")
+    assert cli.main(["review", str(path), "--panel", "Docs Crit"]) == 2
+    assert "Nothing was spent" in capsys.readouterr().err

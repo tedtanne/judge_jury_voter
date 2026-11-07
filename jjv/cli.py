@@ -28,6 +28,7 @@ from jjv.explain import explain, step_label
 from jjv.fetch import FetchError, fetch_page
 from jjv.harness import consult, load_providers, make_backend, save_opinions, with_opinions
 from jjv.orchestrator import AGGREGATORS, Config, Orchestrator, convene
+from jjv.parse import can_parse, parse_file
 from jjv.suggest import budget_warning, render, suggest_panel
 
 
@@ -231,18 +232,30 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.url:
             print(f"fetching {args.url}", file=sys.stderr, flush=True)
-            page = fetch_page(args.url)
+            with Progress() as progress:
+                progress.phase = "the page"
+                page = fetch_page(args.url)
+        elif args.input != "-" and can_parse(args.input):
+            print(f"reading {args.input}, which can take a few minutes", file=sys.stderr,
+                  flush=True)
+            with Progress() as progress:
+                progress.phase = "the document"
+                page = parse_file(args.input)
+        else:
+            page = None
+            text = sys.stdin.read() if args.input == "-" else Path(args.input).read_text()
+        if page:
             text = page.text
             print(f"  read {len(text.split()):,} words, {page.formulas} formulas",
                   file=sys.stderr, flush=True)
+            if page.note:
+                print(f"  note: {page.note}", file=sys.stderr, flush=True)
             if warning := page.math_warning():
                 if not args.allow_lost_math:
                     print(f"error: {warning} Nothing was spent. Use --allow-lost-math to run "
                           "anyway.", file=sys.stderr)
                     return 2
                 print(f"WARNING: {warning}", file=sys.stderr)
-        else:
-            text = sys.stdin.read() if args.input == "-" else Path(args.input).read_text()
     except FetchError as e:
         print(f"error: {e}", file=sys.stderr)
         return 2

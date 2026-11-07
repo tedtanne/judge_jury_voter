@@ -16,7 +16,7 @@ The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs durin
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest -q                                          # 358 unit tests, no API key needed
+pytest -q                                          # 377 unit tests, no API key needed
 python -m jjv.registry > docs/archetypes.md        # regenerate the archetype catalog
 python -m jjv.eval_broker --trials 300 --seed 7    # Nash broker vs weighted vote
 ```
@@ -42,6 +42,20 @@ While a run works, status lines show elapsed time, money spent, the step (`2/4 J
 `suggest` makes one small model call with no tools, and only prints a recommendation. Its costs are rough, based on a few runs, and improve as clean runs are saved. It has been tried on only four samples.
 
 [`docs/reading-a-run.md`](docs/reading-a-run.md) explains every line, with a real example.
+
+### Documents and formulas
+
+Text files, code and web pages work with no extra install. Web pages keep formulas as LaTeX, whether they are images with alt text, MathML, KaTeX, MathJax scripts or Wikipedia math. If a page's formulas cannot be read, the run stops before spending anything, unless you pass `--allow-lost-math`.
+
+PDF, Word, PowerPoint and Excel files need [Docling](https://github.com/docling-project/docling), which is large (about 1.5 GB, plus about 1 GB of models on first use) and runs on your machine:
+
+```bash
+pip install -r requirements-parse.txt
+python -m jjv.cli review paper.pdf --panel "Paper Review" --max-usd 8
+python -m jjv.cli review --url https://arxiv.org/pdf/1706.03762 --panel "Paper Review" --max-usd 8
+```
+
+A paper can take a few minutes to read, and `suggest` followed by `review` reads it twice. Displayed formulas become LaTeX, read from the page image, so they can contain small errors. Inline math stays as plain text. Check any formula a finding depends on. Scanned documents are untested.
 
 ### Ways to run JJV
 
@@ -71,7 +85,7 @@ The native way needs no harness, no MCP server and no settings file. The others 
 | Orchestrator | Runs SELECT, JUDGE, JURY, VOTE and the generate loop in fixed order, with retries, quorum, spending limit, saved run records and reputation | `jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py` |
 | Voter | Deterministic tally: consensus score, decision by veto policy, ranked findings, dissents | `jjv/voter.py`, `jjv/verdicts.py` |
 | Evaluation | Nash broker vs weighted voting: offline simulation plus a live-comparison hook | `jjv/eval_broker.py` |
-| Tests and CI | 358 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
+| Tests and CI | 377 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
 | Design docs | The full swarm architecture and roadmap, the broker spec, the domain-agent library map, and the catalog | `docs/` |
 
 **Status.** This repository holds the full archetype registry (58 archetypes, 25 presets, every preset member defined), the negotiation layer and its evaluation, the orchestrator, the Voter, and a CLI. Still to come: the FastAPI backend and web UI, and the live broker comparison on real subjects.
