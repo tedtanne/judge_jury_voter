@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Callable
 
 from jjv import registry
+from jjv.explain import explain, step_label
 from jjv.fetch import FetchError, fetch_text
 from jjv.harness import (HarnessError, consult, load_providers, make_backend, save_opinions,
                          with_opinions)
@@ -85,9 +86,12 @@ class Job:
     status: str = "running"
     phase: str = "STARTING"
     cost_usd: float = 0.0
+    consult_usd: float = 0.0
     run_id: str | None = None
     error: str | None = None
     notes: list[str] = field(default_factory=list)
+    convergence: list[str] = field(default_factory=list)
+    waiting: list[str] = field(default_factory=list)
     task: object = None
 
 
@@ -161,8 +165,9 @@ class Service:
         view: dict = {}
         if job:
             view = {"job_id": job.id, "status": job.status, "phase": job.phase,
-                    "cost_usd": round(job.cost_usd, 4), "limit_usd": job.limit,
-                    "notes": job.notes[-5:]}
+                    "step": step_label(job.phase), "cost_usd": round(job.cost_usd, 4),
+                    "limit_usd": job.limit, "waiting_on": job.waiting,
+                    "convergence": job.convergence, "notes": job.notes[-5:]}
             if job.error:
                 view["error"] = job.error
             if not job.run_id:
@@ -187,6 +192,10 @@ class Service:
         if run.get("draft"):
             view["draft"] = run["draft"]
         return view
+
+    def explain_run(self, run_id: str) -> str:
+        """How each section of a saved run reached its result. No model calls."""
+        return explain(self._load(run_id))
 
     def settle(self, run_id: str, revision_budget: float) -> dict:
         """Re-run the bargain on a saved run at another budget. No model calls."""
@@ -260,10 +269,16 @@ class Service:
 
     def _progress(self, job: Job, event: dict) -> None:
         job.phase = event.get("phase", job.phase)
+        job.cost_usd = max(job.cost_usd, job.consult_usd + event.get("cost_usd", 0.0))
         if event["type"] == "note":
             job.notes.append(event["text"])
+            job.waiting = list(event.get("waiting", job.waiting))
+        elif event["type"] == "convergence":
+            job.convergence.append(event["text"])
         elif event["type"] == "failure":
             job.notes.append(f"{event['archetype_id']} failed")
+        if event["type"] in ("verdict", "failure") and event["archetype_id"] in job.waiting:
+            job.waiting.remove(event["archetype_id"])
 
     async def _run(self, job: Job, orchestrator: Orchestrator, judges: list, text: str, url: str,
                    models: list[str], consult_usd: float) -> None:
@@ -278,7 +293,7 @@ class Service:
                 providers = load_providers(self.limits.providers_file, models)
                 opinions = await consult(text, providers, max_usd=consult_usd)
                 spent = sum(o.cost for o in opinions)
-                job.cost_usd = spent
+                job.cost_usd = job.consult_usd = spent
                 text, labels = with_opinions(text, opinions)
             entry = orchestrator.review if job.mode == "review" else orchestrator.generate
             run = await entry(text, judges)
@@ -331,6 +346,11 @@ def build_server(service: Service):
                              "or a run id. Free. " + DATA_NOTE)
     def get_run(run_id: str, findings: int = 10) -> dict:
         return answer(service.get_run, run_id, findings)
+
+    @server.tool(description="Show how each section of a saved run reached its result, "
+                             "with the sums written out. Free.")
+    def explain_run(run_id: str) -> dict:
+        return answer(lambda: {"explanation": service.explain_run(run_id)})
 
     @server.tool(description="Re-run the Nash bargain on a saved run at a different revision "
                              "budget, to see what would be fixed. No model calls, free.")

@@ -13,6 +13,12 @@
 
 - **MCP server** (`jjv/mcp_server.py`). Free tools read the registry and saved runs, and `settle` replays a bargain at a new budget with no model calls. Paid `review` and `generate` are off by default, and limits are set by the server owner, including a total allowance. Links from a client must be public addresses.
 
+- **`suggest`** recommends one to three panels, or says none fits, with rough costs and a command built by code. One small model call, with no tools. Revised after a JJV review of the proposal: `--panel auto` and an MCP tool are left for later.
+- **`--explain` and `explain RUN_ID`** show how each section reached its result, with the sums written out. Free on a saved run. MCP clients get `explain_run`.
+- **`docs/reading-a-run.md`** explains the status lines, convergence lines, result and `--explain` output, using a real run.
+- **Budget warning.** `review` warns before spending when `--max-usd` looks too small. Estimates ignore runs that failed or hit their limit.
+- **Status lines** now show the step and how many Judges have reported, a heartbeat line names who is being waited on, and convergence lines show how the panel moved. These also appear in `--explain`, in the run record and in MCP `get_run`.
+
 ### Changed
 - **Every panel bargains.** The Nash kernel no longer needs Nash_Agent on the panel, so the 13 presets without it stop falling back to a weighted vote. Their fix lists may change, and those runs now count toward reputation. `--aggregator weighted_vote` still selects a plain vote.
 

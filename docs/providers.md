@@ -67,7 +67,7 @@ Most clients take a command and its environment, for example:
                         "env": {"JJV_MCP_PAID": "0"}}}}
 ```
 
-**Free tools** never call a model: `list_panels`, `list_archetypes`, `list_providers`, `get_limits`, `get_run`, and `settle`, which replays the bargain on a saved run at a different budget.
+**Free tools** never call a model: `list_panels`, `list_archetypes`, `list_providers`, `get_limits`, `get_run`, `explain_run`, and `settle`, which replays the bargain on a saved run at a different budget.
 
 **Paid tools** are `review` and `generate`. An AI client would be choosing when to spend, so they are off unless you set `JJV_MCP_PAID=1`. Each returns a job id at once, and `get_run` reports progress. `review` takes `consult_models` to ask several providers first.
 
