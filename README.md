@@ -11,6 +11,17 @@ A swarm of AI review agents. Each agent is an *archetype* of a best-in-the-busin
 
 The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs during the Jury round. It treats the Judges as players bargaining over which findings the next revision fixes, under a fixed revision budget. It settles that bargaining with the Nash bargaining solution, not a vote. A Judge's threat counts only when it holds a veto for that area. In simulation this resists one overconfident Judge far better than weighted voting, but that has not been shown on live panels (see [Evaluation](#evaluation)).
 
+## What's new
+
+- **PDF, Word, PowerPoint and Excel** files, read on your machine by optional Docling, with formulas kept as LaTeX.
+- **`--json` and a cache** for apps: results come back as data, and reviewing the same content again costs nothing.
+- **`suggest`** recommends a panel and a budget, and `review` warns when a limit looks too small.
+- **Live status and convergence**: where a run is, who it is waiting on, and how the panel is moving. `--explain` shows the sums behind every result. See [`docs/reading-a-run.md`](docs/reading-a-run.md).
+- **More math survives** from web pages, and a run stops before spending if formulas are lost.
+- **Other models and AI clients**: ask OpenAI, xAI and Gemini alongside Claude, or call JJV from an MCP client. See [`docs/providers.md`](docs/providers.md).
+
+Every change is in [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Quick start
 
 Install only what you need. Each line includes the ones above it.
@@ -26,7 +37,7 @@ Without the last one, everything else still works, and a document file stops wit
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest -q                                          # 377 unit tests, no API key needed
+pytest -q                                          # 401 unit tests, no API key needed
 python -m jjv.registry > docs/archetypes.md        # regenerate the archetype catalog
 python -m jjv.eval_broker --trials 300 --seed 7    # Nash broker vs weighted vote
 ```
@@ -78,6 +89,16 @@ The native way needs no harness, no MCP server and no settings file. The others 
 | **Judges on a public API** | Add `--judge-provider openai` | Provider key and `~/.jjv/providers.json`. No Claude Code needed |
 | **From an AI client** | `python -m jjv.mcp_server` | Nothing extra for free tools. Paid tools also need `JJV_MCP_PAID=1` and the setup for the backend they use |
 
+### From an app
+
+Add `--json` to `review`, `generate`, `suggest` or `explain`, and the result comes back as JSON on stdout: the decision, score, fix list, every finding, convergence, the run id and a `fingerprint` of the content. Status lines stay on stderr, and errors come back as `{"status": "error", "error": "..."}`.
+
+```bash
+python -m jjv.cli review note.md --panel "Thinkers Panel" --json > result.json
+```
+
+A finished review is reused when the same content is reviewed again with the same panel and settings, so asking twice costs nothing, and a cached PDF is not read again. The JSON says `"cached": true`. Use `--no-cache` to run again. Changing the content, panel, an archetype's version or any setting that shapes the result starts a new run; changing `--max-usd` does not. Runs that failed or lost a Judge are never reused, and neither are `--repo` runs. The MCP server reuses results the same way.
+
 `--repo`, which lets Judges read a codebase, works only the native way. Setup for the optional ways is in [`docs/providers.md`](docs/providers.md).
 
 ## What's in this repository
@@ -95,7 +116,7 @@ The native way needs no harness, no MCP server and no settings file. The others 
 | Orchestrator | Runs SELECT, JUDGE, JURY, VOTE and the generate loop in fixed order, with retries, quorum, spending limit, saved run records and reputation | `jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py` |
 | Voter | Deterministic tally: consensus score, decision by veto policy, ranked findings, dissents | `jjv/voter.py`, `jjv/verdicts.py` |
 | Evaluation | Nash broker vs weighted voting: offline simulation plus a live-comparison hook | `jjv/eval_broker.py` |
-| Tests and CI | 377 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
+| Tests and CI | 401 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
 | Design docs | The full swarm architecture and roadmap, the broker spec, the domain-agent library map, and the catalog | `docs/` |
 
 **Status.** This repository holds the full archetype registry (58 archetypes, 25 presets, every preset member defined), the negotiation layer and its evaluation, the orchestrator, the Voter, and a CLI. Still to come: the FastAPI backend and web UI, and the live broker comparison on real subjects.

@@ -368,8 +368,9 @@ class Orchestrator:
         linked, groups = V.link_findings(verdicts)
         canon = {member: group[0] for group in groups for member in group}
         bargaining = {v["alias"] for v in self._bargainers(verdicts)}
+        # A Judge that named no list has not agreed to one.
         lists = {v["alias"]: frozenset(_key({"id": canon.get(i, i)}) for i in v["fix_list"])
-                 for v in replied if v["alias"] in bargaining}
+                 for v in replied if v["alias"] in bargaining and "fix_list" in v}
         if len(bargaining) < 2 or set(lists) != bargaining or len(set(lists.values())) != 1:
             return None
         agreed = next(iter(lists.values()))
@@ -435,12 +436,12 @@ class Orchestrator:
                 canon = {m: g[0] for g in groups for m in g}
                 bargaining = {v["alias"] for v in self._bargainers(current)}
                 self._emit(run, "convergence", **E.position_view(
-                    {r["alias"]: frozenset(canon.get(i, i) for i in r["fix_list"])
+                    {r["alias"]: frozenset(canon.get(i, i) for i in r.get("fix_list", []))
                      for r in replied if r["alias"] in bargaining}, number))
                 rec["deliberation"].append({
                     "round": number,
-                    "positions": {r["alias"]: r["fix_list"] for r in replied},
-                    "messages": {r["alias"]: r["message"] for r in replied if r["message"]},
+                    "positions": {r["alias"]: r.get("fix_list") for r in replied},
+                    "messages": {r["alias"]: r["message"] for r in replied if r.get("message")},
                     "agreed": agreed,
                 })
                 self._save(run)

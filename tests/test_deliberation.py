@@ -228,3 +228,13 @@ def test_fix_list_must_be_a_list():
     bad = reply_for(a["id"]) | {"fix_list": "A-1"}
     with pytest.raises(V.VerdictError):
         V.normalize(bad, a, "A")
+
+
+def test_a_judge_that_names_no_list_has_not_agreed_and_nothing_crashes():
+    def play(kind, aid, req):
+        reply = reply_for(aid, findings=[finding(f"{aid}-x")])
+        if kind == "jury" and aid != "simplifier":
+            reply["fix_list"] = ["A-1"]
+        return reply
+    rec = review(Fake(play), DOCS, deliberation_rounds=2)["rounds"][0]
+    assert "agreed" not in rec and rec["settled_by"] == "formula"

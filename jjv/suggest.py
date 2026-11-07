@@ -168,25 +168,40 @@ async def suggest_panel(text: str, backend: Backend) -> tuple[dict, float]:
     return parse(reply.data), reply.cost
 
 
+def as_data(result: dict, text: str, source: list[str], *, cost: float = 0.0,
+            store: str | None = None) -> dict:
+    """The recommendation as plain data. ``source`` is the input as CLI arguments."""
+    picks = []
+    for pick in result["picks"]:
+        low, high = estimate_usd(len(text), len(PRESET_PANELS[pick["panel"]]), store=store)
+        picks.append({**pick, "low_usd": low, "high_usd": high,
+                      "max_usd": max(1, math.ceil(high))})
+    command = None
+    if picks:
+        command = ["python", "-m", "jjv.cli", "review", *(source or ["-"]),
+                   "--panel", picks[0]["panel"], "--max-usd", str(picks[0]["max_usd"])]
+    return {"kind": result["kind"], "words": len(text.split()),
+            "no_good_fit": result["no_good_fit"], "picks": picks, "command": command,
+            "piped": not source, "cost_usd": round(cost, 4),
+            "note": "The reasons come from a model that read the content, so treat them as "
+                    "untrusted. Costs are rough estimates."}
+
+
 def render(result: dict, text: str, source: list[str], *, cost: float = 0.0,
            store: str | None = None) -> str:
     """``source`` is the input as CLI arguments; empty means it came from a pipe."""
-    out = [f"This looks like: {result['kind']} ({len(text.split()):,} words)", ""]
-    if result["no_good_fit"]:
+    data = as_data(result, text, source, cost=cost, store=store)
+    out = [f"This looks like: {data['kind']} ({data['words']:,} words)", ""]
+    if data["no_good_fit"]:
         out += ["No panel is a good fit.", ""]
-    for number, pick in enumerate(result["picks"], 1):
-        members = len(PRESET_PANELS[pick["panel"]])
-        low, high = estimate_usd(len(text), members, store=store)
-        out += [f"{number}. {pick['panel']}  (about ${low:.2f} to ${high:.2f})",
-                f"   {pick['reason']}"]
+    for number, pick in enumerate(data["picks"], 1):
+        out += [f"{number}. {pick['panel']}  (about ${pick['low_usd']:.2f} to "
+                f"${pick['high_usd']:.2f})", f"   {pick['reason']}"]
     out.append("")
-    if result["picks"]:
-        top = result["picks"][0]["panel"]
-        high = estimate_usd(len(text), len(PRESET_PANELS[top]), store=store)[1]
-        command = ["python", "-m", "jjv.cli", "review", *(source or ["-"]),
-                   "--panel", top, "--max-usd", str(max(1, math.ceil(high)))]
-        out += ["Run the top pick with:", "  " + " ".join(shlex.quote(c) for c in command)]
-        if not source:
+    if data["command"]:
+        out += ["Run the top pick with:",
+                "  " + " ".join(shlex.quote(c) for c in data["command"])]
+        if data["piped"]:
             out.append("  (send the same input through a pipe again)")
         out.append("")
     out += ["The reasons come from a model that read the content, so treat them as untrusted.",

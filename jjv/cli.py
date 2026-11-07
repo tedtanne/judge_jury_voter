@@ -24,12 +24,14 @@ from pathlib import Path
 
 from jjv import voter
 from jjv.backend import BackendError, ClaudeBackend
+from jjv.cache import cache_key, fingerprint, lookup, remember
 from jjv.explain import explain, step_label
 from jjv.fetch import FetchError, fetch_page
 from jjv.harness import consult, load_providers, make_backend, save_opinions, with_opinions
 from jjv.orchestrator import AGGREGATORS, Config, Orchestrator, convene
 from jjv.parse import can_parse, parse_file
-from jjv.suggest import budget_warning, render, suggest_panel
+from jjv.report import to_data
+from jjv.suggest import as_data, budget_warning, render, suggest_panel
 
 
 def parser() -> argparse.ArgumentParser:
@@ -48,6 +50,10 @@ def parser() -> argparse.ArgumentParser:
     ap.add_argument("--no-jury", action="store_true", help="skip the deliberation round")
     ap.add_argument("--explain", action="store_true",
                     help="after the result, show how each section reached its output")
+    ap.add_argument("--json", action="store_true",
+                    help="print the result as JSON on stdout, for an app; status stays on stderr")
+    ap.add_argument("--no-cache", action="store_true",
+                    help="run again even if this content was reviewed with the same settings")
     ap.add_argument("--aggregator", choices=AGGREGATORS, default="nash_broker")
     ap.add_argument("--deliberation-rounds", type=int, default=1,
                     help="Jury rounds; above 1, Judges negotiate and cost rises with each round")
@@ -190,21 +196,30 @@ def gather_opinions(args, text: str) -> tuple[list, str, dict]:
 def explain_saved(args) -> int:
     run_id = args.input or ""
     if not re.fullmatch(r"[0-9a-f]{12}", run_id):
-        print("error: explain needs a run id", file=sys.stderr)
-        return 2
+        return fail(args, "explain needs a run id", 2)
     try:
         run = json.loads((Path(args.store) / f"{run_id}.json").read_text())
     except (OSError, ValueError) as e:
-        print(f"error: cannot read run {run_id}: {e}", file=sys.stderr)
-        return 2
-    print(explain(run), end="")
+        return fail(args, f"cannot read run {run_id}: {e}", 2)
+    if args.json:
+        print(json.dumps(to_data(run, store=args.store) | {"explanation": explain(run)},
+                         indent=1))
+    else:
+        print(explain(run), end="")
     return 0
+
+
+def fail(args, message: str, code: int) -> int:
+    """Report an error: to stderr for a person, and also as JSON on stdout for an app."""
+    print(f"error: {message}", file=sys.stderr)
+    if getattr(args, "json", False):
+        print(json.dumps({"status": "error", "error": message}))
+    return code
 
 
 def run_suggest(args, text: str) -> int:
     if not text.strip():
-        print("error: nothing to read: the content is blank", file=sys.stderr)
-        return 2
+        return fail(args, "nothing to read: the content is blank", 2)
     try:
         backend = judge_backend(args)
         print("reading a sample of the content", file=sys.stderr, flush=True)
@@ -212,13 +227,50 @@ def run_suggest(args, text: str) -> int:
             progress.phase = "the recommendation"
             result, cost = asyncio.run(suggest_panel(text, backend))
     except (ValueError, BackendError) as e:
-        print(f"error: {e}", file=sys.stderr)
-        return 1
+        return fail(args, str(e), 1)
     if args.url:
         source = ["--url", args.url]
     else:
         source = [] if args.input == "-" else [args.input]
-    print(render(result, text, source, cost=cost, store=args.store), end="")
+    if args.json:
+        print(json.dumps(as_data(result, text, source, cost=cost, store=args.store), indent=1))
+    else:
+        print(render(result, text, source, cost=cost, store=args.store), end="")
+    return 0
+
+
+def show(args, run: dict, *, cached: bool, content_fingerprint: str | None,
+         warnings: list[str]) -> int:
+    """Print a finished or reused run, as text for a person or JSON for an app."""
+    if cached:
+        when = time.strftime("%Y-%m-%d %H:%M", time.localtime(run["created"]))
+        print(f"reusing run {run['id']} from {when}: the same content and settings, so "
+              "nothing was spent. Use --no-cache to run again.", file=sys.stderr)
+    failed = run["status"] != "done"
+    if failed:
+        print(f"run failed: {run['error']}", file=sys.stderr)
+    if warning := failure_warning(run):
+        print(warning, file=sys.stderr)
+        warnings = [*warnings, warning]
+    if args.json:
+        print(json.dumps(to_data(run, store=args.store, cached=cached,
+                                 fingerprint=content_fingerprint, warnings=warnings), indent=1))
+        return 1 if failed else 0
+    if failed:
+        return 1
+    print(voter.summary(run["result"]))
+    if run["result"]["fixes"]:
+        print("\nFix in the next revision:")
+        print("\n".join(f"  - {f['title']}" for f in run["result"]["fixes"]))
+    if args.mode == "generate":
+        print(f"\nStopped: {run['stop_reason']}; kept round {run['best_round']} "
+              f"of {len(run['rounds'])}.")
+        if args.out:
+            Path(args.out).write_text(run["draft"])
+    spent = "nothing spent, reused" if cached else f"${run['cost_usd']:.2f}"
+    print(f"\nRun {run['id']}: {spent}, saved in {args.store}/")
+    if args.explain:
+        print("\n" + explain(run), end="")
     return 0
 
 
@@ -227,8 +279,29 @@ def main(argv: list[str] | None = None) -> int:
     if args.mode == "explain":
         return explain_saved(args)
     if (args.input is None) == (args.url is None):
-        print("error: give exactly one of a file or --url", file=sys.stderr)
-        return 2
+        return fail(args, "give exactly one of a file or --url", 2)
+    panel = None
+    if args.mode != "suggest":
+        try:
+            panel = convene(args.panel, args.judges.split(",") if args.judges else None,
+                            args.discipline)
+        except (KeyError, ValueError) as e:
+            return fail(args, e.args[0], 2)
+    use_cache = panel is not None and not args.repo
+    settings = {"aggregator": args.aggregator, "jury": not args.no_jury,
+                "deliberation_rounds": args.deliberation_rounds,
+                "revision_budget": args.revision_budget, "model": args.model,
+                "judge_provider": args.judge_provider,
+                "consult": sorted(args.consult.split(",")) if args.consult else None,
+                "max_rounds": args.max_rounds, "threshold": args.threshold}
+    warnings: list[str] = []
+
+    def cached_run(content_fingerprint: str):
+        if not use_cache or args.no_cache:
+            return None
+        return lookup(args.store, cache_key(args.mode, content_fingerprint, panel, **settings))
+
+    content_fingerprint = None
     try:
         if args.url:
             print(f"fetching {args.url}", file=sys.stderr, flush=True)
@@ -236,6 +309,11 @@ def main(argv: list[str] | None = None) -> int:
                 progress.phase = "the page"
                 page = fetch_page(args.url)
         elif args.input != "-" and can_parse(args.input):
+            # Fingerprint the file itself, so a cached review skips minutes of reading.
+            content_fingerprint = fingerprint(Path(args.input).read_bytes())
+            if hit := cached_run(content_fingerprint):
+                return show(args, hit, cached=True, content_fingerprint=content_fingerprint,
+                            warnings=warnings)
             print(f"reading {args.input}, which can take a few minutes", file=sys.stderr,
                   flush=True)
             with Progress() as progress:
@@ -250,26 +328,24 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr, flush=True)
             if page.note:
                 print(f"  note: {page.note}", file=sys.stderr, flush=True)
+                warnings.append(page.note)
             if warning := page.math_warning():
                 if not args.allow_lost_math:
-                    print(f"error: {warning} Nothing was spent. Use --allow-lost-math to run "
-                          "anyway.", file=sys.stderr)
-                    return 2
+                    return fail(args, f"{warning} Nothing was spent. Use --allow-lost-math to "
+                                      "run anyway.", 2)
                 print(f"WARNING: {warning}", file=sys.stderr)
+                warnings.append(warning)
     except FetchError as e:
-        print(f"error: {e}", file=sys.stderr)
-        return 2
+        return fail(args, str(e), 2)
     except (OSError, UnicodeDecodeError) as e:
-        print(f"error: cannot read {args.input}: {e}", file=sys.stderr)
-        return 2
+        return fail(args, f"cannot read {args.input}: {e}", 2)
     if args.mode == "suggest":
         return run_suggest(args, text)
-    try:
-        panel = convene(args.panel, args.judges.split(",") if args.judges else None,
-                        args.discipline)
-    except (KeyError, ValueError) as e:
-        print(f"error: {e.args[0]}", file=sys.stderr)
-        return 2
+    if content_fingerprint is None:
+        content_fingerprint = fingerprint(text)
+        if hit := cached_run(content_fingerprint):
+            return show(args, hit, cached=True, content_fingerprint=content_fingerprint,
+                        warnings=warnings)
 
     config = Config(jury=not args.no_jury, aggregator=args.aggregator, model=args.model,
                     repo=args.repo, max_usd=args.max_usd, store=args.store,
@@ -291,33 +367,18 @@ def main(argv: list[str] | None = None) -> int:
                                      rounds=args.deliberation_rounds, store=args.store)
             if warning:
                 print(warning, file=sys.stderr)
+                warnings.append(warning)
         with progress:
             run = asyncio.run(entry(text, panel))
     except ValueError as e:
-        print(f"error: {e}", file=sys.stderr)
-        return 2
+        return fail(args, str(e), 2)
 
     if opinions:
         save_opinions(args.store, run, opinions, labels)
-    if run["status"] != "done":
-        print(f"run failed: {run['error']}", file=sys.stderr)
-        print(failure_warning(run) or "", file=sys.stderr)
-        return 1
-    if warning := failure_warning(run):
-        print(warning, file=sys.stderr)
-    print(voter.summary(run["result"]))
-    if run["result"]["fixes"]:
-        print("\nFix in the next revision:")
-        print("\n".join(f"  - {f['title']}" for f in run["result"]["fixes"]))
-    if args.mode == "generate":
-        print(f"\nStopped: {run['stop_reason']}; kept round {run['best_round']} "
-              f"of {len(run['rounds'])}.")
-        if args.out:
-            Path(args.out).write_text(run["draft"])
-    print(f"\nRun {run['id']}: ${run['cost_usd']:.2f}, saved in {args.store}/")
-    if args.explain:
-        print("\n" + explain(run), end="")
-    return 0
+    if use_cache:
+        remember(args.store, cache_key(args.mode, content_fingerprint, panel, **settings), run)
+    return show(args, run, cached=False, content_fingerprint=content_fingerprint,
+                warnings=warnings)
 
 
 if __name__ == "__main__":
