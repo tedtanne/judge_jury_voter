@@ -77,6 +77,7 @@ class Progress:
         self.start = time.monotonic()
         self.expected = 0
         self.reported = 0
+        self.waiting: list[str] = []
         self.heartbeat_s = heartbeat_s
         self.quiet_since = self.start
         self.spent = 0.0
@@ -95,15 +96,25 @@ class Progress:
     def _tick(self) -> None:
         while not self.finished.wait(self.heartbeat_s / 3):
             if time.monotonic() - self.quiet_since >= self.heartbeat_s:
-                waiting = (f", {self.reported}/{self.expected} reported"
-                           if self.expected and self.reported < self.expected else "")
-                self.line({"cost_usd": self.spent}, f"  still working on {self.phase}{waiting}")
+                self.line({"cost_usd": self.spent},
+                          f"  still working on {self.phase}{self.pending()}")
 
     def line(self, event: dict, text: str) -> None:
         self.quiet_since = time.monotonic()
         seconds = int(self.quiet_since - self.start)
         print(f"{seconds // 60:02d}:{seconds % 60:02d}  ${event.get('cost_usd', 0):5.2f}  {text}",
               file=sys.stderr, flush=True)
+
+    def pending(self) -> str:
+        if not self.waiting:
+            return ""
+        names = ", ".join(self.waiting[:3]) + (", ..." if len(self.waiting) > 3 else "")
+        return f", {self.reported}/{self.expected} reported, waiting on {names}"
+
+    def done(self, archetype_id: str) -> None:
+        self.reported += 1
+        if archetype_id in self.waiting:
+            self.waiting.remove(archetype_id)
 
     def count(self) -> str:
         return f"{self.reported}/{self.expected} " if self.expected else ""
@@ -115,16 +126,23 @@ class Progress:
         if kind == "phase":
             self.line(event, f"[{step_label(event['phase'])}]")
         elif kind == "verdict":
-            self.reported += 1
+            self.done(event["archetype_id"])
             self.line(event, f"  {self.count()}{event['archetype_id']}: "
                              f"{event['recommendation']} ({event['overall']:g}/5)")
         elif kind == "note":
             if "expected" in event:
                 self.expected, self.reported = event["expected"], 0
+                self.waiting = list(event.get("waiting", []))
             self.line(event, f"  {event['text']}")
         elif kind == "failure":
-            self.reported += 1
+            self.done(event["archetype_id"])
             self.line(event, f"  {self.count()}{event['archetype_id']} FAILED: {event['error']}")
+        elif kind == "convergence":
+            self.line(event, f"  convergence: {event['text']}")
+        elif kind == "links":
+            self.line(event, f"  linked {len(event['groups'])} groups of matching findings")
+        elif kind == "restored":
+            self.line(event, f"  put back {len(event['finding_ids'])} dropped findings")
         elif kind == "settlement":
             self.line(event, f"  settlement proposes {len(event['address_now'])} fixes")
         elif kind == "vote":
@@ -154,8 +172,11 @@ def gather_opinions(args, text: str) -> tuple[list, str, dict]:
     """Ask the chosen models, report each one, and build the subject for the panel."""
     names = [n.strip() for n in args.consult.split(",") if n.strip()]
     providers = load_providers(args.providers_file, names)
-    print(f"asking {len(providers)} models, limit ${args.consult_usd:.2f}", file=sys.stderr)
-    opinions = asyncio.run(consult(text, providers, max_usd=args.consult_usd))
+    print(f"asking {len(providers)} models, limit ${args.consult_usd:.2f}", file=sys.stderr,
+          flush=True)
+    with Progress() as progress:
+        progress.phase = "the model answers"
+        opinions = asyncio.run(consult(text, providers, max_usd=args.consult_usd))
     for o in opinions:
         status = f"FAILED: {o.error}" if o.error else f"answered (${o.cost:.2f})"
         print(f"  {o.provider}: {status}", file=sys.stderr)
@@ -183,7 +204,10 @@ def run_suggest(args, text: str) -> int:
         return 2
     try:
         backend = judge_backend(args)
-        result, cost = asyncio.run(suggest_panel(text, backend))
+        print("reading a sample of the content", file=sys.stderr, flush=True)
+        with Progress() as progress:
+            progress.phase = "the recommendation"
+            result, cost = asyncio.run(suggest_panel(text, backend))
     except (ValueError, BackendError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -204,7 +228,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         if args.url:
+            print(f"fetching {args.url}", file=sys.stderr, flush=True)
             text = fetch_text(args.url)
+            print(f"  read {len(text.split()):,} words", file=sys.stderr, flush=True)
         else:
             text = sys.stdin.read() if args.input == "-" else Path(args.input).read_text()
     except FetchError as e:

@@ -100,7 +100,7 @@ Several controls keep the swarm useful and bounded. **Budgets**: every run carri
 - **The broker evaluation** (`jjv/eval_broker.py`). In an offline simulation of 300 synthetic panels, a single overconfident Judge displaced 1% of the broker's chosen fixes against 19% under weighted voting, and fewer Judges were shut out (0.06 vs 0.13 on average). The cost was 96% vs 99% of the maximum total value addressed. It also has a live-comparison hook for real runs.
 - **The orchestrator** (`jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py`). It runs review and generate modes on the Claude Agent SDK, one isolated `query()` per Judge, with Nash_Agent in the Jury phase, `endorses` and `change_aversion` in the verdict, reputation saved across runs, and `live_run_fn` connecting `run_live_comparison` to the generate loop.
 - **The Voter** (`jjv/voter.py`) and the verdict contract (`jjv/verdicts.py`). The Voter is a deterministic tally; no synthesis agent yet.
-- **350 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
+- **357 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
 
 **Orchestrator decisions worth knowing:**
 - Nash_Agent is not a player. It holds no stake, so its own findings reach the Voter but are not bargained over. One reaches a fix list only if a Judge links a finding to it.

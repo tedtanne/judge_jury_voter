@@ -8,6 +8,8 @@ inputs the run used, so a reader can check them by hand.
 
 from __future__ import annotations
 
+from collections import Counter
+
 from jjv import registry, voter
 
 STEPS = ("SELECT", "JUDGE", "JURY", "VOTE")
@@ -16,6 +18,56 @@ STEPS = ("SELECT", "JUDGE", "JURY", "VOTE")
 def step_label(phase: str) -> str:
     """Where a phase sits in the process, such as "2/4 JUDGE"."""
     return f"{STEPS.index(phase) + 1}/{len(STEPS)} {phase}" if phase in STEPS else phase
+
+
+def spread(verdicts: list[dict]) -> float:
+    """The gap between the highest and lowest Judge: zero means full agreement on the score."""
+    scores = [v["overall"] for v in verdicts]
+    return round(max(scores) - min(scores), 3) if scores else 0.0
+
+
+def first_view(verdicts: list[dict]) -> dict:
+    """Where the Judges stand before they have read each other."""
+    tally = Counter(v["recommendation"] for v in verdicts)
+    votes = ", ".join(f"{n} {r}" for r, n in sorted(tally.items()))
+    count = sum(len(v["findings"]) for v in verdicts)
+    return {"stage": "judge", "spread": spread(verdicts), "findings": count,
+            "text": f"scores differ by {spread(verdicts):g}, votes: {votes}, {count} findings"}
+
+
+def jury_view(before: list[dict], after: list[dict], number: int, links: int) -> dict:
+    """How far one Jury round moved the panel."""
+    moved = sum(a["overall"] != b["overall"] or a["recommendation"] != b["recommendation"]
+                for a, b in zip(before, after))
+    gap_before, gap_after = spread(before), spread(after)
+    trend = ("closer" if gap_after < gap_before else
+             "further apart" if gap_after > gap_before else "no closer")
+    return {"stage": "jury", "round": number, "moved": moved, "of": len(after),
+            "spread_before": gap_before, "spread": gap_after, "links": links,
+            "text": f"round {number}: {moved} of {len(after)} Judges moved, score gap "
+                    f"{gap_before:g} to {gap_after:g} ({trend}), {links} issues linked"}
+
+
+def position_view(positions: dict[str, frozenset], number: int) -> dict:
+    """How close negotiating Judges are to naming the same fix list."""
+    biggest = max(Counter(positions.values()).values(), default=0)
+    return {"stage": "negotiation", "round": number, "agree": biggest, "of": len(positions),
+            "text": f"round {number}: {biggest} of {len(positions)} Judges name the same fix list"}
+
+
+def fix_list_view(proposed: list[str], final: list[str]) -> dict:
+    """How much the fix list changed between the first proposal and the final bargain."""
+    kept = len(set(proposed) & set(final))
+    return {"stage": "fix_list", "kept": kept, "proposed": len(proposed), "final": len(final),
+            "text": f"{kept} of {len(proposed)} proposed fixes survived to the final "
+                    f"{len(final)}"}
+
+
+def round_view(number: int, score: float, previous: float | None, target: float) -> dict:
+    """How a generate round moved the score toward its target."""
+    change = "" if previous is None else f" ({score - previous:+.2f})"
+    return {"stage": "generate", "round": number, "score": score, "target": target,
+            "text": f"draft {number} scored {score:g}{change}, target {target:g}"}
 
 
 def _weights(archetype_id: str) -> dict[str, float]:
@@ -116,6 +168,11 @@ def _vote(rec: dict) -> list[str]:
     ]
 
 
+def _convergence(run: dict) -> list[str]:
+    lines = [e["text"] for e in run.get("events", []) if e["type"] == "convergence"]
+    return ["[Convergence] how the panel moved", *(f"  {line}" for line in lines)] if lines else []
+
+
 def explain(run: dict) -> str:
     out = [f"HOW RUN {run['id']} REACHED ITS RESULT ({run['status']}, "
            f"${run['cost_usd']:.2f})", ""]
@@ -127,6 +184,8 @@ def explain(run: dict) -> str:
         for section in (_select(run, rec), _judge(rec), _jury(rec), _settlement(run, rec),
                         _vote(rec)):
             out += [*section, ""]
+    if lines := _convergence(run):
+        out += [*lines, ""]
     if run.get("failures"):
         out.append(f"Judge calls that failed: {len(run['failures'])}, and any Judge that failed "
                    "the Jury kept its last verdict.")

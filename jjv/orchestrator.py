@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from jjv import registry, verdicts as V, voter
+from jjv import explain as E, registry, verdicts as V, voter
 from jjv.backend import Backend, BackendError, Request
 from jjv.eval_broker import weighted_vote_select
 from jjv.nash import NashBroker, _key
@@ -324,7 +324,8 @@ class Orchestrator:
 
     async def _judge(self, run: dict, rec: dict, panel: list[dict], subject: str) -> list[dict]:
         self._enter(run, "JUDGE")
-        self._emit(run, "note", text=f"asking {len(panel)} Judges", expected=len(panel))
+        self._emit(run, "note", text=f"asking {len(panel)} Judges", expected=len(panel),
+                   waiting=[a["id"] for a in panel])
         tag = f"subject-{secrets.token_hex(4)}"     # unguessable, so it cannot be closed
         cap = self._cap(run, len(panel))
         jobs = []
@@ -336,6 +337,8 @@ class Orchestrator:
                 parse=lambda data, a=a, alias=alias: V.normalize(data, a, alias))))
         results = await self._fan_out(run, jobs)
         rec["judge"] = [v for v in results if v]
+        if rec["judge"]:
+            self._emit(run, "convergence", **E.first_view(rec["judge"]))
         self._save(run)
         if len(rec["judge"]) * 2 <= len(panel):
             raise RunFailed(f"only {len(rec['judge'])} of {len(panel)} Judges reported")
@@ -387,7 +390,7 @@ class Orchestrator:
         for number in range(1, rounds + 1):
             self._emit(run, "note", text=f"round {number} of {rounds}: "
                                          f"{len(current)} Judges deliberating",
-                       expected=len(current))
+                       expected=len(current), waiting=[v["archetype_id"] for v in current])
             settlement_text = None
             if brokered and self._bargainers(current):
                 # Findings stay unlinked between rounds so each Judge keeps its own ids.
@@ -415,12 +418,21 @@ class Orchestrator:
                         data, a, v["alias"], previous=v, known_ids=known))))
             results = await self._fan_out(run, jobs)
             # A Judge that fails to deliberate stands by its last verdict.
+            before = current
             current, restored = V.carry_forward(
                 current, [new or old for new, old in zip(results, current)])
+            self._emit(run, "convergence", **E.jury_view(
+                before, current, number, len(V.link_findings(current)[1])))
             rec["restored"] += [i for i in restored if i not in rec["restored"]]
             if negotiating:
                 replied = [r for r in results if r]
                 agreed = self._agreement(run, current, replied)
+                groups = V.link_findings(current)[1]
+                canon = {m: g[0] for g in groups for m in g}
+                bargaining = {v["alias"] for v in self._bargainers(current)}
+                self._emit(run, "convergence", **E.position_view(
+                    {r["alias"]: frozenset(canon.get(i, i) for i in r["fix_list"])
+                     for r in replied if r["alias"] in bargaining}, number))
                 rec["deliberation"].append({
                     "round": number,
                     "positions": {r["alias"]: r["fix_list"] for r in replied},
@@ -454,6 +466,9 @@ class Orchestrator:
             rec["settlement"] = dataclasses.asdict(settlement)
             # The formula's answer stays on record beside any agreement, for comparison.
             rec["settled_by"] = "agreement" if "agreed" in rec else "formula"
+            if "proposal" in rec:
+                self._emit(run, "convergence", **E.fix_list_view(
+                    rec["proposal"]["address_now"], settlement.address_now))
             chosen = rec.get("agreed", settlement.address_now)
         elif players:
             chosen = weighted_vote_select(players, self.config.revision_budget)
@@ -546,12 +561,16 @@ class Orchestrator:
             rec: dict = {"round": number}
             try:
                 self._enter(run, "GENERATE")
+                self._emit(run, "note", text=f"writing draft {number} of up to "
+                                             f"{self.config.max_rounds}")
                 draft = await self._ask(run, "draft", drafter,
                                         draft_prompt(brief, tag, draft, fixes), schema=None,
                                         cap=self._cap(run, len(panel) + 1))
                 run["rounds"].append(rec)
                 rec["draft"] = draft
                 result = await self._panel_round(run, rec, panel, draft)
+                self._emit(run, "convergence", **E.round_view(
+                    number, result["score"], previous, self.config.threshold))
             except (BackendError, OutOfBudget, RunFailed) as e:
                 if any("vote" in r for r in run["rounds"]):
                     run["stop_reason"] = f"stopped early: {e}"

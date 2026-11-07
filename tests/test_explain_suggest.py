@@ -235,10 +235,10 @@ def test_a_quiet_run_still_prints_that_it_is_alive(capsys):
     import time
     with cli.Progress(heartbeat_s=0.05) as progress:
         progress({"type": "note", "text": "asking 2 Judges", "expected": 2, "cost_usd": 0.5,
-                  "phase": "JUDGE"})
+                  "phase": "JUDGE", "waiting": ["a", "b"]})
         time.sleep(0.2)
     err = capsys.readouterr().err
-    assert "still working on JUDGE, 0/2 reported" in err and "$ 0.50" in err
+    assert "still working on JUDGE, 0/2 reported, waiting on a, b" in err and "$ 0.50" in err
 
 
 def test_the_heartbeat_stops_when_the_run_ends(capsys):
@@ -247,3 +247,70 @@ def test_the_heartbeat_stops_when_the_run_ends(capsys):
         pass
     time.sleep(0.15)
     assert capsys.readouterr().err == ""
+
+
+def status_of(run, kind="convergence"):
+    return [e for e in run["events"] if e["type"] == kind]
+
+
+def test_convergence_reports_where_the_panel_stands_and_how_it_moved():
+    def script(kind, aid, req):
+        score = 2 if kind == "judge" and aid == "simplifier" else 4
+        return reply_for(aid, score, "revise", [finding(f"{aid}-a")])
+    run = review(Fake(script), DOCS)
+    stages = {e["stage"]: e for e in status_of(run)}
+    assert stages["judge"]["spread"] > 0 and stages["judge"]["findings"] == len(DOCS)
+    jury = stages["jury"]
+    assert jury["moved"] == 1 and jury["spread"] < jury["spread_before"]
+    assert "closer" in jury["text"]
+    assert stages["fix_list"]["proposed"] >= stages["fix_list"]["kept"]
+
+
+def test_no_movement_is_said_plainly():
+    jury = [e for e in status_of(findings_run()) if e["stage"] == "jury"][0]
+    assert jury["moved"] == 0 and "no closer" in jury["text"]
+
+
+def test_negotiation_shows_how_many_judges_name_the_same_list():
+    def script(kind, aid, req):
+        reply = reply_for(aid, findings=[finding(f"{aid}-a")])
+        if kind == "jury":
+            reply["fix_list"] = ["A-1"] if aid != "simplifier" else ["B-1"]
+        return reply
+    run = review(Fake(script), DOCS, deliberation_rounds=2)
+    talks = [e for e in status_of(run) if e["stage"] == "negotiation"]
+    assert len(talks) == 2 and talks[0]["agree"] == len(DOCS) - 1 and talks[0]["of"] == len(DOCS)
+
+
+def test_generate_reports_each_draft_against_its_target():
+    from tests.test_orchestrator import generate, improving
+    run = generate(Fake(improving([2, 3, 5])), DOCS)
+    drafts = [e for e in status_of(run) if e["stage"] == "generate"]
+    assert len(drafts) >= 2 and "target 4" in drafts[1]["text"] and "+" in drafts[1]["text"]
+
+
+def test_the_explanation_includes_convergence():
+    assert "[Convergence]" in explain(findings_run())
+
+
+def test_status_names_who_is_still_being_waited_on(capsys):
+    progress = cli.Progress()
+    progress({"type": "note", "text": "asking", "expected": 2, "waiting": ["a", "b"],
+              "phase": "JUDGE", "cost_usd": 0})
+    progress({"type": "verdict", "archetype_id": "a", "recommendation": "revise", "overall": 3,
+              "cost_usd": 0})
+    assert progress.pending() == ", 1/2 reported, waiting on b"
+    progress({"type": "convergence", "text": "scores differ by 1", "cost_usd": 0})
+    assert "convergence: scores differ by 1" in capsys.readouterr().err
+
+
+def test_mcp_clients_see_step_waiting_and_convergence(tmp_path):
+    from jjv.mcp_server import Limits, Service
+    svc = Service(str(tmp_path / "r"), Limits(paid=True), lambda: Fake())
+
+    async def go():
+        job = svc.start("review", "Docs Crit", text="the idea")
+        await svc.jobs[job["job_id"]].task
+        return svc.get_run(job["job_id"])
+    view = asyncio.run(go())
+    assert view["step"] and view["waiting_on"] == [] and len(view["convergence"]) >= 2
