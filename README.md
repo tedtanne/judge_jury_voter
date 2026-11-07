@@ -11,6 +11,17 @@ A swarm of AI review agents. Each agent is an *archetype* of a best-in-the-busin
 
 The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs during the Jury round. It treats the Judges as players bargaining over which findings the next revision fixes, under a fixed revision budget. It settles that bargaining with the Nash bargaining solution, not a vote. A Judge's threat counts only when it holds a veto for that area. In simulation this resists one overconfident Judge far better than weighted voting, but that has not been shown on live panels (see [Evaluation](#evaluation)).
 
+## What's new
+
+- **PDF, Word, PowerPoint and Excel** files, read on your machine by optional Docling, with formulas kept as LaTeX.
+- **`--json` and a cache** for apps: results come back as data, and reviewing the same content again costs nothing.
+- **`suggest`** recommends a panel and a budget, and `review` warns when a limit looks too small.
+- **Live status and convergence**: where a run is, who it is waiting on, and how the panel is moving. `--explain` shows the sums behind every result. See [`docs/reading-a-run.md`](docs/reading-a-run.md).
+- **More math survives** from web pages, and a run stops before spending if formulas are lost.
+- **Other models and AI clients**: ask OpenAI, xAI and Gemini alongside Claude, or call JJV from an MCP client. See [`docs/providers.md`](docs/providers.md).
+
+Every change is in [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Quick start
 
 Install only what you need. Each line includes the ones above it.

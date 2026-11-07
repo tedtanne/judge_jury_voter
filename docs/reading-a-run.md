@@ -145,6 +145,16 @@ The rules are applied in order:
 
 The decision is a recommendation. A person approves.
 
+## Reused results
+
+If the same content was already reviewed with the same panel and settings, the run is reused and nothing is spent:
+
+```
+reusing run 8d179356c0cf from 2026-11-07 14:02: the same content and settings, so nothing was spent. Use --no-cache to run again.
+```
+
+With `--json`, the result says `"cached": true` and `"spent_now_usd": 0`.
+
 ## Choosing a panel
 
 ```
