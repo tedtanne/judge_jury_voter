@@ -74,6 +74,20 @@ def test_physics_of_compute_is_fully_defined():
     assert {"thermodynamicist", "metering_economist", "nash_agent"} <= ids
 
 
+def test_readme_roster_is_current():
+    on_disk = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert registry.sync_readme(on_disk) == on_disk, (
+        "README.md's archetype roster is stale; run: python -m jjv.registry --readme")
+
+
+def test_readme_roster_lists_every_archetype_and_preset():
+    roster = registry.readme_roster()
+    for a in registry.ALL_ARCHETYPES:
+        assert f"| {a['name']} |" in roster, a["id"]
+    for name in PRESET_PANELS:
+        assert f"| {name} |" in roster, name
+
+
 def test_catalog_is_current():
     on_disk = (ROOT / "docs" / "archetypes.md").read_text(encoding="utf-8")
     assert on_disk == registry.catalog(), (

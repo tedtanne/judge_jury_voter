@@ -102,7 +102,7 @@ Several controls keep the swarm useful and bounded. **Budgets**: every run carri
 - **The Voter** (`jjv/voter.py`) and the verdict contract (`jjv/verdicts.py`). The Voter is a deterministic tally; no synthesis agent yet.
 - **Inputs and outputs.** `--url` reads web pages and keeps formulas as LaTeX (`jjv/fetch.py`). Optional Docling reads PDF and Office files (`jjv/parse.py`). `--json` returns results as data (`jjv/report.py`), and finished reviews of the same content are reused (`jjv/cache.py`). `suggest` recommends a panel, and `--explain` shows the sums behind a result (`jjv/suggest.py`, `jjv/explain.py`).
 - **Other models and clients.** `jjv/harness.py` reaches Claude, OpenAI, xAI and Gemini through their public APIs, and `jjv/mcp_server.py` lets MCP clients call JJV. Neither has made a live provider call yet.
-- **401 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
+- **403 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
 
 **Orchestrator decisions worth knowing:**
 - Nash_Agent is not a player. It holds no stake, so its own findings reach the Voter but are not bargained over. One reaches a fix list only if a Judge links a finding to it.

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-11
+
+### Added
+- **Every archetype in the README.** The archetypes section now lists all 58 archetypes by group, with what each judges on and its veto, and all 25 presets with their members, in collapsible sections. It is generated from the registry by `python -m jjv.registry --readme`, and a test fails if it drifts from the code.
+
 ## 2026-11-07
 
 ### Added
