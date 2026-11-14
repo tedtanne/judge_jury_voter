@@ -16,7 +16,7 @@ The harness assumes nothing about who runs it. Every provider, Claude included, 
 1. Copy the settings file: `cp docs/providers.example.json ~/.jjv/providers.json`.
 2. Fill in a model name and the price per million tokens for each provider you use. Prices are required, because these APIs report tokens rather than dollars, so a spending limit cannot work without them. Check them against each provider's price list.
 3. Put keys in your environment, never in the settings file: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY`.
-4. Install the live extra: `pip install -e ".[live]"` from a checkout, or see [Install](../README.md#1-install).
+4. Install the `live` extra, as in [Install](../README.md#1-install): `pip install "judge-jury-voter[live] @ git+https://github.com/tedtanne/judge_jury_voter"`, or `pip install -e ".[live]"` from a checkout.
 
 ## Ask several models, then run the panel
 
