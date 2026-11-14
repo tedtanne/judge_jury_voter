@@ -29,7 +29,7 @@ from jjv.nash import NashBroker                  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 CYCLE = 16.0          # seconds per loop; every animation is keyed to this one clock
-W, H = 1200, 700
+W, H = 1200, 760
 
 # Judge scores from run 94f38f3fa5af: independent, then after the Jury round.
 JUDGES = [("Simplifier", 3.0, 2.636), ("Security", 3.25, 3.25), ("Product", 3.286, 3.0),
@@ -276,7 +276,7 @@ def render(theme: str, g: dict) -> str:
                    f'font-weight="700" fill="{col}">{gain:+.2f}</text></g>')
 
     # --- the Judges' convergence strip ------------------------------------------------
-    sy0 = 615
+    sy0 = 672
     ax0, ax1 = px0, W - 70
     sc = lambda v: ax0 + ((v - 1) / 4) * (ax1 - ax0)
     out.append(f'<line x1="{ax0}" y1="{sy0}" x2="{ax1}" y2="{sy0}" stroke="{c["line"]}"/>')
@@ -284,20 +284,24 @@ def render(theme: str, g: dict) -> str:
         out.append(f'<line x1="{sc(v):.1f}" y1="{sy0 - 4}" x2="{sc(v):.1f}" y2="{sy0 + 4}" stroke="{c["line"]}"/>'
                    f'<text x="{sc(v):.1f}" y="{sy0 + 24}" text-anchor="middle" font-family="{mono}" '
                    f'font-size="13" fill="{c["dim"]}">{v}</text>')
-    out.append(f'<text x="{ax0}" y="{sy0 - 56}" font-family="{mono}" font-size="13" fill="{c["dim"]}" '
+    out.append(f'<text x="{ax0}" y="{sy0 - 84}" font-family="{mono}" font-size="13" fill="{c["dim"]}" '
                f'letter-spacing="1.5">A LIVE PANEL, SCORES OUT OF 5 · INDEPENDENT → AFTER THE JURY → CONSENSUS</text>')
     # Approve threshold and the decision bands.
-    out.append(f'<line x1="{sc(4):.1f}" y1="{sy0 - 40}" x2="{sc(4):.1f}" y2="{sy0 + 6}" '
+    out.append(f'<line x1="{sc(4):.1f}" y1="{sy0 - 70}" x2="{sc(4):.1f}" y2="{sy0 + 6}" '
                f'stroke="{c["approve"]}" stroke-dasharray="3 3" opacity=".7"/>'
-               f'<text x="{sc(4) + 5:.1f}" y="{sy0 - 28}" font-family="{mono}" font-size="12.5" '
+               f'<text x="{sc(4) + 5:.1f}" y="{sy0 - 58}" font-family="{mono}" font-size="12.5" '
                f'fill="{c["approve"]}">approve ≥ 4</text>'
-               f'<line x1="{sc(2):.1f}" y1="{sy0 - 40}" x2="{sc(2):.1f}" y2="{sy0 + 6}" '
+               f'<line x1="{sc(2):.1f}" y1="{sy0 - 70}" x2="{sc(2):.1f}" y2="{sy0 + 6}" '
                f'stroke="{c["reject"]}" stroke-dasharray="3 3" opacity=".7"/>'
-               f'<text x="{sc(2) - 5:.1f}" y="{sy0 - 28}" text-anchor="end" font-family="{mono}" '
+               f'<text x="{sc(2) - 5:.1f}" y="{sy0 - 58}" text-anchor="end" font-family="{mono}" '
                f'font-size="12.5" fill="{c["reject"]}">reject &lt; 2</text>')
     move0, move1 = 6.0, 8.4
+    # Scores bunch up, so labels take three rows, dealt out in score order: neighbours on the
+    # scale never share a row, before or after the move.
+    order = sorted(range(len(JUDGES)), key=lambda i: JUDGES[i][1])
+    row = {i: r % 3 for r, i in enumerate(order)}
     for i, (name, before, after) in enumerate(JUDGES):
-        yy = sy0 - 10 - (i % 2) * 15          # two rows, so labels do not collide
+        yy = sy0 - 12 - row[i] * 18
         out.append(f'<g>'
                    f'<line x1="{sc(before):.1f}" y1="{yy}" x2="{sc(before):.1f}" y2="{yy}" '
                    f'stroke="{c["revise"]}" stroke-width="1.2" opacity=".6">'
@@ -319,7 +323,7 @@ def render(theme: str, g: dict) -> str:
     # Consensus marker.
     cx = sc(CONSENSUS)
     out.append(f'<g opacity="0">{fade(move1 + 0.4, move1 + 1.0)}'
-               f'<line x1="{cx:.1f}" y1="{sy0 - 46}" x2="{cx:.1f}" y2="{sy0 + 10}" stroke="{c["accent"]}" stroke-width="2.5"/>'
+               f'<line x1="{cx:.1f}" y1="{sy0 - 72}" x2="{cx:.1f}" y2="{sy0 + 10}" stroke="{c["accent"]}" stroke-width="2.5"/>'
                f'<text x="{cx:.1f}" y="{sy0 + 48}" text-anchor="middle" font-family="{serif}" font-size="18" '
                f'font-style="italic" fill="{c["ink"]}">consensus {CONSENSUS} · REVISE</text></g>')
     out.append(f'<text x="{ax1}" y="{sy0 + 48}" text-anchor="end" font-family="{mono}" font-size="12.5" '
