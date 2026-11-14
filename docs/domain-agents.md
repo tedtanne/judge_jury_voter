@@ -138,4 +138,4 @@ Every panel now bargains, with or without Nash_Agent. On these presets it adds a
 
 ## Next steps
 
-Every domain archetype now runs live through the orchestrator, for example `python -m jjv.cli review design.md --panel "Physics of Compute"`. Only Physics of Compute and The Nash Table have run so far. Phase 5c, which lets archetypes with `grounded_in` search the library and cite their papers, is still to come. The recommended order for all open work is in [`architecture.md`](architecture.md#next-steps).
+Every domain archetype now runs live through the orchestrator, for example `jjv review design.md --panel "Physics of Compute"`. Only Physics of Compute and The Nash Table have run so far. Phase 5c, which lets archetypes with `grounded_in` search the library and cite their papers, is still to come. The recommended order for all open work is in [`architecture.md`](architecture.md#next-steps).

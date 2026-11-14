@@ -1,6 +1,6 @@
 """JJV as an MCP server, so any MCP client can call the panels.
 
-    python -m jjv.mcp_server
+    jjv-mcp                     # or: python -m jjv.mcp_server
 
 Free tools read the registry and saved runs, and never call a model. Paid tools are off
 unless the person running the server turns them on, because an AI client would be choosing
@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from jjv import registry
+from jjv import __version__, registry
 from jjv.cache import cache_key, fingerprint, lookup, remember
 from jjv.explain import explain, step_label
 from jjv.fetch import FetchError, fetch_text
@@ -331,7 +331,7 @@ def build_server(service: Service):
     """The MCP surface. Each tool is a thin call into ``Service``."""
     from mcp.server.mcpserver import MCPServer
 
-    server = MCPServer("jjv", instructions=(
+    server = MCPServer("jjv", version=__version__, instructions=(
         "Judge_Jury_Voter: panels of AI reviewers that score a subject, deliberate, bargain "
         "over fixes and vote. Results are advice to a person. " + DATA_NOTE))
 

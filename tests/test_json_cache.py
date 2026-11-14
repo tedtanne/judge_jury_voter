@@ -165,7 +165,7 @@ def test_suggest_and_explain_speak_json(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "ClaudeBackend", lambda: Answer(GOOD))
     assert cli.main(["suggest", str(subject), "--json", *store]) == 0
     data = json.loads(capsys.readouterr().out)
-    assert data["picks"][0]["panel"] == "Paper Review" and data["command"][0] == "python"
+    assert data["picks"][0]["panel"] == "Paper Review" and "review" in data["command"]
     assert data["picks"][0]["max_usd"] >= 1
 
     monkeypatch.setattr(cli, "ClaudeBackend", lambda: Fake())

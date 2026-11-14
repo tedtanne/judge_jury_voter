@@ -12,6 +12,7 @@ import json
 import math
 import secrets
 import shlex
+import shutil
 from pathlib import Path
 from statistics import median
 
@@ -168,6 +169,11 @@ async def suggest_panel(text: str, backend: Backend) -> tuple[dict, float]:
     return parse(reply.data), reply.cost
 
 
+def cli_command() -> list[str]:
+    """How to invoke JJV here: the installed ``jjv`` script, else ``python -m jjv.cli``."""
+    return ["jjv"] if shutil.which("jjv") else ["python", "-m", "jjv.cli"]
+
+
 def as_data(result: dict, text: str, source: list[str], *, cost: float = 0.0,
             store: str | None = None) -> dict:
     """The recommendation as plain data. ``source`` is the input as CLI arguments."""
@@ -178,7 +184,7 @@ def as_data(result: dict, text: str, source: list[str], *, cost: float = 0.0,
                       "max_usd": max(1, math.ceil(high))})
     command = None
     if picks:
-        command = ["python", "-m", "jjv.cli", "review", *(source or ["-"]),
+        command = [*cli_command(), "review", *(source or ["-"]),
                    "--panel", picks[0]["panel"], "--max-usd", str(picks[0]["max_usd"])]
     return {"kind": result["kind"], "words": len(text.split()),
             "no_good_fit": result["no_good_fit"], "picks": picks, "command": command,

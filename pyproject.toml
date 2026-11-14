@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "judge-jury-voter"
+description = "Panels of AI Judges that review or draft work, deliberate, and settle what to fix with the Nash bargaining solution."
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.10"
+dynamic = ["version"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Quality Assurance",
+]
+# The kernel, registry, Voter and evaluation use only the standard library.
+dependencies = []
+
+[project.optional-dependencies]
+# Live runs: claude-agent-sdk runs Judges locally; anthropic is the public API for
+# --consult and --judge-provider; mcp serves JJV to an MCP client.
+live = ["claude-agent-sdk>=0.2.178,<0.3", "anthropic>=2.6,<3", "mcp>=2.3,<3"]
+# Reading PDF, Word, PowerPoint and Excel files. Large: about 1.5 GB, plus models on first use.
+parse = ["judge-jury-voter[live]", "docling>=2.148.0,<3"]
+test = ["pytest>=8", "pytest-cov>=5"]
+
+[project.scripts]
+jjv = "jjv.cli:main"
+jjv-mcp = "jjv.mcp_server:main"
+
+[project.urls]
+Homepage = "https://github.com/tedtanne/judge_jury_voter"
+Changelog = "https://github.com/tedtanne/judge_jury_voter/blob/main/CHANGELOG.md"
+
+[tool.setuptools]
+packages = ["jjv"]
+
+[tool.setuptools.dynamic]
+version = {attr = "jjv.__version__"}
