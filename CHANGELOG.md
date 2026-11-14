@@ -13,6 +13,7 @@ Changes from running JJV on its own design docs: The Nash Table on `docs/nash-ag
 ### Fixed
 - **Jury-round budget shares** follow what each Judge cost in the Judge round. The even split cut off the Judges reading a repository at high effort; in one run four of six lost their Jury call.
 - **The settlement proposal is fenced** in the Jury digest, since it prints finding titles the Judges wrote.
+- **The README has a Get started walkthrough** (install, sign in, `suggest`, `review`, read the result) and an MCP server setup section with the `claude mcp add` one-liner, the JSON for other clients, the free and paid tools and their limits.
 - **The README read as Claude-only.** It now leads with the choice of backend: the Claude Agent SDK by default, `--judge-provider` for OpenAI, xAI, Gemini or any OpenAI-compatible endpoint, `--consult` for several models first, and the MCP server.
 - **Stale design docs.** The architecture doc counted 19 presets, tied bargaining to a broker archetype and put the Voter on a model. The broker spec's worked example gave a gain from before rework cost was shared; a test now runs the example.
 
