@@ -101,8 +101,9 @@ Several controls keep the swarm useful and bounded. **Budgets**: every run carri
 - **The orchestrator** (`jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py`), installed as the `jjv` command. It runs review and generate modes on the Claude Agent SDK, one isolated `query()` per Judge, with Nash_Agent in the Jury phase, `endorses` and `change_aversion` in the verdict, reputation saved across runs, and `live_run_fn` connecting `run_live_comparison` to the generate loop.
 - **The Voter** (`jjv/voter.py`) and the verdict contract (`jjv/verdicts.py`). The Voter is a deterministic tally; no synthesis agent yet.
 - **Inputs and outputs.** `--url` reads web pages and keeps formulas as LaTeX (`jjv/fetch.py`). Optional Docling reads PDF and Office files (`jjv/parse.py`). `--json` returns results as data (`jjv/report.py`), and finished reviews of the same content are reused (`jjv/cache.py`). `suggest` recommends a panel, and `--explain` shows the sums behind a result (`jjv/suggest.py`, `jjv/explain.py`).
+- **The run viewer** (`jjv/render.py`). `jjv render RUN_ID` writes one static page from a saved record, with no script or network fetch: the room, convergence, findings, the bargain and the decision rule. Four runs are rendered under `docs/runs/` and served by GitHub Pages. It is the first slice of the web interface, and the view the live comparison will use.
 - **Other models and clients.** `jjv/harness.py` reaches Claude, OpenAI, xAI and Gemini through their public APIs, and `jjv/mcp_server.py` lets MCP clients call JJV. Neither has made a live provider call yet.
-- **411 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
+- **421 passing tests**, no API key or SDK needed, run by CI on Python 3.10–3.12 together with the evaluation.
 
 **Orchestrator decisions worth knowing:**
 - Nash_Agent is not a player. It holds no stake, so its own findings reach the Voter but are not bargained over. One reaches a fix list only if a Judge links a finding to it.

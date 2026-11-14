@@ -2,7 +2,7 @@
 title: Reading a run
 description: What the status lines, convergence lines and --explain output mean, with a real example.
 status: draft
-updated: 2026-11-07
+updated: 2026-11-14
 ---
 
 # Reading a run
@@ -13,7 +13,10 @@ A run reports what it is doing while it works, then what it decided, then, if yo
 jjv suggest plan.md                       # which panel, and what budget
 jjv review plan.md --panel "The Nash Table" --max-usd 5 --explain
 jjv explain RUN_ID                        # the same explanation later, free
+jjv render RUN_ID --out run.html          # the same run as one page, free
 ```
+
+The run on this page is also rendered as a page: [https://tedtanne.github.io/judge_jury_voter/runs/8d179356c0cf.html](https://tedtanne.github.io/judge_jury_voter/runs/8d179356c0cf.html). The page shows each Judge's score before and after the Jury with what it said changed its mind, the findings ranked by support with who raised and backed each, the negotiation offers, the bargain with the gain per Judge, and the decision rule, from the same record `--explain` reads.
 
 The example on this page is a real run: a short design for a rate limiter, reviewed by The Nash Table with `--deliberation-rounds 2`. It took 3 minutes 34 seconds and cost $2.62.
 
