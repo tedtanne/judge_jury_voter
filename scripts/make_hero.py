@@ -29,7 +29,7 @@ from jjv.nash import NashBroker                  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 CYCLE = 16.0          # seconds per loop; every animation is keyed to this one clock
-W, H = 1200, 560
+W, H = 1200, 700
 
 # Judge scores from run 94f38f3fa5af: independent, then after the Jury round.
 JUDGES = [("Simplifier", 3.0, 2.636), ("Security", 3.25, 3.25), ("Product", 3.286, 3.0),
@@ -131,7 +131,7 @@ def render(theme: str, g: dict) -> str:
     sans = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
 
     # Plot frame for the bargaining plane.
-    px0, px1, py0, py1 = 70, 640, 70, 390
+    px0, px1, py0, py1 = 70, 660, 80, 450
     costs = [b[1] for b in g["bundles"]]
     objs = [b[2] for b in g["bundles"]]
     cmax = max(costs) * 1.04
@@ -159,10 +159,10 @@ def render(theme: str, g: dict) -> str:
            f'<rect width="{W}" height="{H}" fill="url(#wash)"/>']
 
     # --- bargaining plane -----------------------------------------------------------
-    out.append(f'<g font-family="{mono}" font-size="11" fill="{c["dim"]}">')
+    out.append(f'<g font-family="{mono}" font-size="14" fill="{c["dim"]}">')
     out.append(f'<line x1="{px0}" y1="{py1}" x2="{px1}" y2="{py1}" stroke="{c["line"]}"/>')
     out.append(f'<line x1="{px0}" y1="{py0}" x2="{px0}" y2="{py1}" stroke="{c["line"]}"/>')
-    out.append(f'<text x="{px1}" y="{py1 + 22}" text-anchor="end">revision cost of the bundle, c(S)</text>')
+    out.append(f'<text x="{px1}" y="{py1 + 26}" text-anchor="end">revision cost of the bundle, c(S)</text>')
     out.append(f'<text x="{px0 - 8}" y="{py0 - 10}" text-anchor="start">Σ wᵢ φ(gainᵢ)</text>')
     out.append('</g>')
 
@@ -172,10 +172,10 @@ def render(theme: str, g: dict) -> str:
         x, y = sx(cost) + rng.uniform(-3, 3), sy(obj) + rng.uniform(-2, 2)
         arrive = 0.4 + (cost / cmax) * 2.4
         if ok:
-            out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2.6" fill="{c["accent"]}" opacity="0">'
+            out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3.2" fill="{c["accent"]}" opacity="0">'
                        f'{fade(arrive, arrive + 0.5, hi=0.55)}</circle>')
         else:
-            out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2.4" fill="none" '
+            out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" fill="none" '
                        f'stroke="{c["dim"]}" stroke-width=".8" opacity="0">'
                        f'{fade(arrive, arrive + 0.5, hi=0.35)}</circle>')
 
@@ -184,17 +184,17 @@ def render(theme: str, g: dict) -> str:
     out.append(f'<g opacity="0">{fade(3.0, 3.6)}'
                f'<line x1="{bx:.1f}" y1="{py0}" x2="{bx:.1f}" y2="{py1}" stroke="{c["reject"]}" '
                f'stroke-width="1.2" stroke-dasharray="4 4"/>'
-               f'<text x="{bx + 6:.1f}" y="{py0 + 14}" font-family="{mono}" font-size="11" '
+               f'<text x="{bx + 6:.1f}" y="{py0 + 14}" font-family="{mono}" font-size="14" '
                f'fill="{c["reject"]}">budget B = {g["budget"]:g}</text>'
-               f'<text x="{bx + 6:.1f}" y="{py0 + 28}" font-family="{mono}" font-size="10" '
+               f'<text x="{bx + 6:.1f}" y="{py0 + 28}" font-family="{mono}" font-size="12.5" '
                f'fill="{c["dim"]}">beyond it, no deal</text></g>')
 
     # Disagreement point D: where the search starts.
     pts = [(sx(g["cost"](S)), sy(g["objective"](S))) for S in g["path"]]
     dx, dy = pts[0]
     out.append(f'<g opacity="0">{fade(3.8, 4.3)}'
-               f'<circle cx="{dx:.1f}" cy="{dy:.1f}" r="5" fill="none" stroke="{c["ink2"]}" stroke-width="1.4"/>'
-               f'<text x="{dx + 10:.1f}" y="{dy + 4:.1f}" font-family="{mono}" font-size="11" '
+               f'<circle cx="{dx:.1f}" cy="{dy:.1f}" r="6" fill="none" stroke="{c["ink2"]}" stroke-width="1.6"/>'
+               f'<text x="{dx + 12:.1f}" y="{dy + 5:.1f}" font-family="{mono}" font-size="14" '
                f'fill="{c["ink2"]}">D: the credible vetoes alone</text></g>')
 
     # The search path: one segment lights per step, then the marker rides the whole path.
@@ -204,113 +204,113 @@ def render(theme: str, g: dict) -> str:
         length = math.hypot(x1 - x0, y1 - y0)
         a = step0 + (i - 1) * step_dt
         out.append(f'<line x1="{x0:.1f}" y1="{y0:.1f}" x2="{x1:.1f}" y2="{y1:.1f}" '
-                   f'stroke="{c["accent"]}" stroke-width="2" stroke-linecap="round" '
+                   f'stroke="{c["accent"]}" stroke-width="2.5" stroke-linecap="round" '
                    f'stroke-dasharray="{length:.1f}" stroke-dashoffset="{length:.1f}" opacity="0.9">'
                    f'<animate attributeName="stroke-dashoffset" dur="{CYCLE}s" repeatCount="indefinite" '
                    f'values="{length:.1f};{length:.1f};0;0;{length:.1f}" '
                    f'keyTimes="0;{t(a)};{t(a + step_dt * 0.8)};{t(CYCLE - 0.6)};1"/>'
                    f'{fade(a, a + 0.05, hi=0.9)}</line>')
-        out.append(f'<circle cx="{x1:.1f}" cy="{y1:.1f}" r="3.6" fill="{c["accent"]}" opacity="0">'
+        out.append(f'<circle cx="{x1:.1f}" cy="{y1:.1f}" r="4.5" fill="{c["accent"]}" opacity="0">'
                    f'{fade(a + step_dt * 0.8, a + step_dt * 0.9)}</circle>')
     land = step0 + (len(pts) - 1) * step_dt
 
     # The settlement: a glow and a label, once the search lands.
     fx, fy = pts[-1]
     out.append(f'<g opacity="0">{fade(land, land + 0.5)}'
-               f'<circle cx="{fx:.1f}" cy="{fy:.1f}" r="26" fill="url(#glow)">'
-               f'<animate attributeName="r" dur="2.4s" repeatCount="indefinite" values="20;30;20"/></circle>'
-               f'<circle cx="{fx:.1f}" cy="{fy:.1f}" r="5.5" fill="{c["accent"]}" stroke="{c["paper"]}" stroke-width="2"/>'
-               f'<text x="{fx - 12:.1f}" y="{fy - 14:.1f}" text-anchor="end" font-family="{serif}" '
-               f'font-size="15" font-style="italic" fill="{c["ink"]}">S*, the settlement</text>'
-               f'<text x="{fx - 12:.1f}" y="{fy + 2:.1f}" text-anchor="end" font-family="{mono}" '
-               f'font-size="10.5" fill="{c["dim"]}">cost {g["cost"](g["best"]):g} of {g["budget"]:g} · '
+               f'<circle cx="{fx:.1f}" cy="{fy:.1f}" r="32" fill="url(#glow)">'
+               f'<animate attributeName="r" dur="2.4s" repeatCount="indefinite" values="26;38;26"/></circle>'
+               f'<circle cx="{fx:.1f}" cy="{fy:.1f}" r="7" fill="{c["accent"]}" stroke="{c["paper"]}" stroke-width="2.5"/>'
+               f'<text x="{fx - 12:.1f}" y="{fy - 18:.1f}" text-anchor="end" font-family="{serif}" '
+               f'font-size="19" font-style="italic" fill="{c["ink"]}">S*, the settlement</text>'
+               f'<text x="{fx - 12:.1f}" y="{fy + 3:.1f}" text-anchor="end" font-family="{mono}" '
+               f'font-size="13" fill="{c["dim"]}">cost {g["cost"](g["best"]):g} of {g["budget"]:g} · '
                f'{len(g["best"]) - g["forced"]} fixes + {g["forced"]} forced</text></g>')
 
     # Caption under the plane.
     n = len(g["bundles"])
-    out.append(f'<text x="{px0}" y="{py1 + 44}" font-family="{sans}" font-size="12.5" fill="{c["ink2"]}">'
+    out.append(f'<text x="{px0}" y="{py1 + 52}" font-family="{sans}" font-size="15" fill="{c["ink2"]}">'
                f'{n} bundles a five-Judge panel could choose, drawn from the kernel. '
                f'Solid: fits the budget and keeps every veto. Hollow: no deal.</text>')
 
     # --- equations -------------------------------------------------------------------
     ex = 700
-    out.append(f'<text x="{ex}" y="{py0 + 2}" font-family="{serif}" font-size="30" font-weight="700" '
+    out.append(f'<text x="{ex}" y="{py0 + 2}" font-family="{serif}" font-size="38" font-weight="700" '
                f'fill="{c["ink"]}" letter-spacing="-.5">Judge <tspan fill="{c["accent"]}">·</tspan> Jury '
                f'<tspan fill="{c["accent"]}">·</tspan> Voter</text>')
-    out.append(f'<text x="{ex}" y="{py0 + 24}" font-family="{sans}" font-size="13" fill="{c["ink2"]}">'
+    out.append(f'<text x="{ex}" y="{py0 + 30}" font-family="{sans}" font-size="16" fill="{c["ink2"]}">'
                'A swarm of review agents, settled by Nash bargaining instead of a vote.</text>')
 
     eqs = [
-        (1.0, "uᵢ(S) = Σ<tspan baseline-shift='sub' font-size='11'>f∈S</tspan> vᵢ(f) − aᵢ · c(S) / n",
+        (1.0, "uᵢ(S) = Σ<tspan baseline-shift='sub' font-size='13'>f∈S</tspan> vᵢ(f) − aᵢ · c(S) / n",
          "each Judge's utility: the findings it values, less its share of the rework"),
         (2.2, "D = the credible vetoes  ·  feasible S ⊇ D,  c(S) ≤ B",
          "a blocker counts only when a veto stands behind it; the rest is cheap talk"),
-        (3.4, "max<tspan baseline-shift='sub' font-size='11'>S</tspan> Π<tspan baseline-shift='sub' font-size='11'>i</tspan> (uᵢ(S) − uᵢ(D))<tspan baseline-shift='super' font-size='11'>wᵢ</tspan>",
+        (3.4, "max<tspan baseline-shift='sub' font-size='13'>S</tspan> Π<tspan baseline-shift='sub' font-size='13'>i</tspan> (uᵢ(S) − uᵢ(D))<tspan baseline-shift='super' font-size='13'>wᵢ</tspan>",
          "Nash (1950): the weighted product of each party's gain over no deal"),
-        (4.6, "= max<tspan baseline-shift='sub' font-size='11'>S</tspan> Σ<tspan baseline-shift='sub' font-size='11'>i</tspan> wᵢ φ(gᵢ),   φ(g) = ln(1+g) if g > 0, else g",
+        (4.6, "= max<tspan baseline-shift='sub' font-size='13'>S</tspan> Σ<tspan baseline-shift='sub' font-size='13'>i</tspan> wᵢ φ(gᵢ),   φ(g) = ln(1+g) if g > 0, else g",
          "the kernel's smoothed form: concave on gains, so surplus is spread, not piled"),
-        (5.8, "uᵢ<tspan baseline-shift='super' font-size='11'>area</tspan>(S*) ≥ uᵢ<tspan baseline-shift='super' font-size='11'>area</tspan>(D)  ∀ veto-holders  ⇒  accept is an equilibrium",
+        (5.8, "uᵢ<tspan baseline-shift='super' font-size='13'>area</tspan>(S*) ≥ uᵢ<tspan baseline-shift='super' font-size='13'>area</tspan>(D)  ∀ veto-holders  ⇒  accept is an equilibrium",
          "no holder gains by blocking in its own area, so ratifying S* is a Nash equilibrium"),
     ]
-    y = py0 + 64
+    y = py0 + 78
     for at, formula, note in eqs:
         out.append(f'<g opacity="0">{fade(at, at + 0.7)}'
-                   f'<text x="{ex}" y="{y}" font-family="{serif}" font-size="17" font-style="italic" '
+                   f'<text x="{ex}" y="{y}" font-family="{serif}" font-size="19" font-style="italic" '
                    f'fill="{c["ink"]}">{formula}</text>'
-                   f'<text x="{ex}" y="{y + 18}" font-family="{sans}" font-size="11.5" fill="{c["dim"]}">'
+                   f'<text x="{ex}" y="{y + 22}" font-family="{sans}" font-size="14" fill="{c["dim"]}">'
                    f'{esc(note)}</text></g>')
-        y += 50
+        y += 62
 
     # Gains per Judge, once the settlement lands.
     gx = ex
     out.append(f'<g opacity="0">{fade(land + 0.3, land + 0.9)}'
-               f'<text x="{gx}" y="{y + 2}" font-family="{mono}" font-size="10.5" fill="{c["dim"]}" '
+               f'<text x="{gx}" y="{y + 2}" font-family="{mono}" font-size="13" fill="{c["dim"]}" '
                f'letter-spacing="1.5">SURPLUS OVER NO DEAL, BY JUDGE</text></g>')
-    gy = y + 22
+    gy = y + 28
     for i, (pid, gain) in enumerate(sorted(g["gains"].items())):
         col = c["approve"] if gain > 0 else c["reject"]
         out.append(f'<g opacity="0">{fade(land + 0.4 + i * 0.12, land + 0.9 + i * 0.12)}'
-                   f'<text x="{gx + i * 96}" y="{gy}" font-family="{mono}" font-size="12" fill="{c["ink2"]}">'
+                   f'<text x="{gx + i * 100}" y="{gy}" font-family="{mono}" font-size="14" fill="{c["ink2"]}">'
                    f'{esc(pid)}</text>'
-                   f'<text x="{gx + i * 96}" y="{gy + 16}" font-family="{mono}" font-size="13" '
+                   f'<text x="{gx + i * 100}" y="{gy + 20}" font-family="{mono}" font-size="16" '
                    f'font-weight="700" fill="{col}">{gain:+.2f}</text></g>')
 
     # --- the Judges' convergence strip ------------------------------------------------
-    sy0 = 470
+    sy0 = 615
     ax0, ax1 = px0, W - 70
     sc = lambda v: ax0 + ((v - 1) / 4) * (ax1 - ax0)
     out.append(f'<line x1="{ax0}" y1="{sy0}" x2="{ax1}" y2="{sy0}" stroke="{c["line"]}"/>')
     for v in (1, 2, 3, 4, 5):
         out.append(f'<line x1="{sc(v):.1f}" y1="{sy0 - 4}" x2="{sc(v):.1f}" y2="{sy0 + 4}" stroke="{c["line"]}"/>'
-                   f'<text x="{sc(v):.1f}" y="{sy0 + 20}" text-anchor="middle" font-family="{mono}" '
-                   f'font-size="10.5" fill="{c["dim"]}">{v}</text>')
-    out.append(f'<text x="{ax0}" y="{sy0 - 44}" font-family="{mono}" font-size="10.5" fill="{c["dim"]}" '
+                   f'<text x="{sc(v):.1f}" y="{sy0 + 24}" text-anchor="middle" font-family="{mono}" '
+                   f'font-size="13" fill="{c["dim"]}">{v}</text>')
+    out.append(f'<text x="{ax0}" y="{sy0 - 56}" font-family="{mono}" font-size="13" fill="{c["dim"]}" '
                f'letter-spacing="1.5">A LIVE PANEL, SCORES OUT OF 5 · INDEPENDENT → AFTER THE JURY → CONSENSUS</text>')
     # Approve threshold and the decision bands.
-    out.append(f'<line x1="{sc(4):.1f}" y1="{sy0 - 30}" x2="{sc(4):.1f}" y2="{sy0 + 6}" '
+    out.append(f'<line x1="{sc(4):.1f}" y1="{sy0 - 40}" x2="{sc(4):.1f}" y2="{sy0 + 6}" '
                f'stroke="{c["approve"]}" stroke-dasharray="3 3" opacity=".7"/>'
-               f'<text x="{sc(4) + 5:.1f}" y="{sy0 - 20}" font-family="{mono}" font-size="10" '
+               f'<text x="{sc(4) + 5:.1f}" y="{sy0 - 28}" font-family="{mono}" font-size="12.5" '
                f'fill="{c["approve"]}">approve ≥ 4</text>'
-               f'<line x1="{sc(2):.1f}" y1="{sy0 - 30}" x2="{sc(2):.1f}" y2="{sy0 + 6}" '
+               f'<line x1="{sc(2):.1f}" y1="{sy0 - 40}" x2="{sc(2):.1f}" y2="{sy0 + 6}" '
                f'stroke="{c["reject"]}" stroke-dasharray="3 3" opacity=".7"/>'
-               f'<text x="{sc(2) - 5:.1f}" y="{sy0 - 20}" text-anchor="end" font-family="{mono}" '
-               f'font-size="10" fill="{c["reject"]}">reject &lt; 2</text>')
+               f'<text x="{sc(2) - 5:.1f}" y="{sy0 - 28}" text-anchor="end" font-family="{mono}" '
+               f'font-size="12.5" fill="{c["reject"]}">reject &lt; 2</text>')
     move0, move1 = 6.0, 8.4
     for i, (name, before, after) in enumerate(JUDGES):
-        yy = sy0 - 8 - (i % 2) * 11          # two rows, so labels do not collide
+        yy = sy0 - 10 - (i % 2) * 15          # two rows, so labels do not collide
         out.append(f'<g>'
                    f'<line x1="{sc(before):.1f}" y1="{yy}" x2="{sc(before):.1f}" y2="{yy}" '
                    f'stroke="{c["revise"]}" stroke-width="1.2" opacity=".6">'
                    f'<animate attributeName="x2" dur="{CYCLE}s" repeatCount="indefinite" '
                    f'values="{sc(before):.1f};{sc(before):.1f};{sc(after):.1f};{sc(after):.1f};{sc(before):.1f}" '
                    f'keyTimes="0;{t(move0)};{t(move1)};{t(CYCLE - 0.6)};1"/></line>'
-                   f'<circle cy="{yy}" r="4.5" fill="{c["revise"]}" stroke="{c["paper"]}" stroke-width="1.5">'
+                   f'<circle cy="{yy}" r="6" fill="{c["revise"]}" stroke="{c["paper"]}" stroke-width="2">'
                    f'<animate attributeName="cx" dur="{CYCLE}s" repeatCount="indefinite" '
                    f'values="{sc(before):.1f};{sc(before):.1f};{sc(after):.1f};{sc(after):.1f};{sc(before):.1f}" '
                    f'keyTimes="0;{t(move0)};{t(move1)};{t(CYCLE - 0.6)};1" calcMode="spline" '
                    f'keySplines="0 0 1 1;.2 .8 .2 1;0 0 1 1;0 0 1 1"/>'
                    f'{fade(0.6 + i * 0.15, 1.0 + i * 0.15)}</circle>'
-                   f'<text y="{yy - 8}" text-anchor="middle" font-family="{mono}" font-size="9.5" fill="{c["ink2"]}">'
+                   f'<text y="{yy - 10}" text-anchor="middle" font-family="{mono}" font-size="12.5" fill="{c["ink2"]}">'
                    f'<animate attributeName="x" dur="{CYCLE}s" repeatCount="indefinite" '
                    f'values="{sc(before):.1f};{sc(before):.1f};{sc(after):.1f};{sc(after):.1f};{sc(before):.1f}" '
                    f'keyTimes="0;{t(move0)};{t(move1)};{t(CYCLE - 0.6)};1" calcMode="spline" '
@@ -319,10 +319,10 @@ def render(theme: str, g: dict) -> str:
     # Consensus marker.
     cx = sc(CONSENSUS)
     out.append(f'<g opacity="0">{fade(move1 + 0.4, move1 + 1.0)}'
-               f'<line x1="{cx:.1f}" y1="{sy0 - 34}" x2="{cx:.1f}" y2="{sy0 + 8}" stroke="{c["accent"]}" stroke-width="2"/>'
-               f'<text x="{cx:.1f}" y="{sy0 + 38}" text-anchor="middle" font-family="{serif}" font-size="14" '
+               f'<line x1="{cx:.1f}" y1="{sy0 - 46}" x2="{cx:.1f}" y2="{sy0 + 10}" stroke="{c["accent"]}" stroke-width="2.5"/>'
+               f'<text x="{cx:.1f}" y="{sy0 + 48}" text-anchor="middle" font-family="{serif}" font-size="18" '
                f'font-style="italic" fill="{c["ink"]}">consensus {CONSENSUS} · REVISE</text></g>')
-    out.append(f'<text x="{ax1}" y="{sy0 + 38}" text-anchor="end" font-family="{mono}" font-size="10" '
+    out.append(f'<text x="{ax1}" y="{sy0 + 48}" text-anchor="end" font-family="{mono}" font-size="12.5" '
                f'fill="{c["dim"]}">run 94f38f3fa5af · The Nash Table · {len(JUDGES)} Judges</text>')
 
     out.append('</svg>')
