@@ -250,8 +250,8 @@ def digest(verdicts: list[dict], viewer: str, fence: str,
     """The anonymized digest one Judge reads: everyone else's verdicts, by alias only.
 
     Judges' words can quote the subject, so they sit inside ``fence``, a tag they cannot
-    guess. The settlement sits outside. It still prints finding titles, but ``normalize``
-    keeps each to one line, so a title cannot add lines to the settlement.
+    guess. The settlement prints finding titles, which Judges wrote, so it sits inside a
+    second tag built from the same fence. ``normalize`` keeps each title to one line.
     """
     out = ["ANONYMIZED DIGEST OF THE OTHER JUDGES", f"<{fence}>", ""]
     for v in sorted(verdicts, key=lambda v: v["alias"]):
@@ -269,5 +269,5 @@ def digest(verdicts: list[dict], viewer: str, fence: str,
         out.append("")
     out += [f"</{fence}>", ""]
     if settlement_text:
-        out += [settlement_text, ""]
+        out += [f"<settlement-{fence}>", settlement_text, f"</settlement-{fence}>", ""]
     return "\n".join(out).rstrip() + "\n"

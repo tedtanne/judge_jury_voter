@@ -43,6 +43,7 @@ class Request:
 class Reply:
     data: object                     # parsed object when a schema was given, else text
     cost: float = 0.0
+    model: str | None = None         # the model id that answered, when the backend knows it
 
 
 class Backend(Protocol):
@@ -128,8 +129,8 @@ class ClaudeBackend:
 
     async def ask(self, request: Request) -> Reply:
         try:
-            from claude_agent_sdk import (ClaudeAgentOptions, ClaudeSDKError, HookMatcher,
-                                          ResultMessage, query)
+            from claude_agent_sdk import (AssistantMessage, ClaudeAgentOptions,
+                                          ClaudeSDKError, HookMatcher, ResultMessage, query)
         except ImportError as e:
             raise BackendError("claude-agent-sdk is not installed; run "
                                "`pip install -r requirements-live.txt`") from e
@@ -154,8 +155,11 @@ class ClaudeBackend:
                    if request.tools else None),
         )
         final = None
+        model = None     # the SDK resolves a tier like "opus" to a model id; keep what answered
         try:
             async for message in query(prompt=request.prompt, options=options):
+                if isinstance(message, AssistantMessage) and message.model:
+                    model = message.model
                 if isinstance(message, ResultMessage):
                     final = message
         except ClaudeSDKError as e:
@@ -172,10 +176,10 @@ class ClaudeBackend:
             raise BackendError(f"{final.subtype}: {detail}".strip(": "), cost,
                                retry=final.subtype != "error_max_budget_usd")
         if request.schema is None:
-            return Reply(final.result or "", cost)
+            return Reply(final.result or "", cost, model)
         if final.structured_output is not None:
-            return Reply(final.structured_output, cost)
+            return Reply(final.structured_output, cost, model)
         try:
-            return Reply(json.loads(final.result or ""), cost)
+            return Reply(json.loads(final.result or ""), cost, model)
         except json.JSONDecodeError as e:
             raise BackendError("reply was not the requested JSON", cost) from e

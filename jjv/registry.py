@@ -54,6 +54,11 @@ def panel(name: str) -> list[dict]:
     return [get(i) for i in PRESET_PANELS[name]]
 
 
+# The only tools a Judge may hold. Archetypes are data, so a record edited to carry Write or
+# Bash must be refused here and by the orchestrator, not trusted because it parsed.
+ALLOWED_TOOLS = ("Read", "Grep", "Glob")
+
+
 def validate() -> list[str]:
     """Every consistency rule the registry must satisfy. Empty list means healthy."""
     problems = []
@@ -61,6 +66,9 @@ def validate() -> list[str]:
     for dup in sorted({i for i in ids if ids.count(i) > 1}):
         problems.append(f"duplicate id: {dup}")
     for a in ALL_ARCHETYPES:
+        for t in a.get("tools", []):
+            if t not in ALLOWED_TOOLS:
+                problems.append(f"{a['id']}: tool {t!r} is not read-only")
         if a["veto"] != bool(a.get("veto_dimensions")):
             problems.append(f"{a['id']}: veto flag disagrees with veto_dimensions")
         for d in a.get("veto_dimensions", []):

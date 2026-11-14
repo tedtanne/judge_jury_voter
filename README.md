@@ -13,6 +13,7 @@ The distinctive piece is **Nash_Agent**, a game-theoretic broker that runs durin
 
 ## What's new
 
+- **Run records name the model** that answered each call, and `--explain` lists them. In the Jury round each Judge's share of the budget follows what it cost in the Judge round, so a Judge reading a repository is no longer cut off mid-reply.
 - **PDF, Word, PowerPoint and Excel** files, read on your machine by optional Docling, with formulas kept as LaTeX.
 - **`--json` and a cache** for apps: results come back as data, and reviewing the same content again costs nothing.
 - **`suggest`** recommends a panel and a budget, and `review` warns when a limit looks too small.
@@ -37,7 +38,7 @@ Without the last one, everything else still works, and a document file stops wit
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest -q                                          # 404 unit tests, no API key needed
+pytest -q                                          # 409 unit tests, no API key needed
 python -m jjv.registry > docs/archetypes.md        # regenerate the archetype catalog
 python -m jjv.registry --readme                    # regenerate the roster in this README
 python -m jjv.eval_broker --trials 300 --seed 7    # Nash broker vs weighted vote
@@ -45,7 +46,7 @@ python -m jjv.eval_broker --trials 300 --seed 7    # Nash broker vs weighted vot
 
 Everything except live runs uses the Python standard library alone. `requirements.txt` only adds the test tooling.
 
-To run a real panel, install the Claude Agent SDK. Live runs call Claude and spend money, up to `--max-usd` (default $5, a soft limit checked between calls). Run records go to `~/.jjv/runs`, outside any repo, because they name who is behind each anonymous Judge and Judges can read the repo they review. Keep secrets gitignored too: Judges cannot read files named like secrets, but a `Grep` can search one that git does not ignore. A store inside `--repo` is refused.
+To run a real panel, install the Claude Agent SDK. Live runs call Claude and spend money, up to `--max-usd` (default $5, a soft limit checked between calls). Each call gets a share of what is left; in the Jury round that share follows what the Judge cost in the Judge round. Run records go to `~/.jjv/runs`, outside any repo, because they name who is behind each anonymous Judge and Judges can read the repo they review. Keep secrets gitignored too: Judges cannot read files named like secrets, but a `Grep` can search one that git does not ignore. A store inside `--repo` is refused.
 
 ```bash
 pip install -r requirements-live.txt
@@ -117,7 +118,7 @@ A finished review is reused when the same content is reviewed again with the sam
 | Orchestrator | Runs SELECT, JUDGE, JURY, VOTE and the generate loop in fixed order, with retries, quorum, spending limit, saved run records and reputation | `jjv/orchestrator.py`, `jjv/backend.py`, `jjv/cli.py` |
 | Voter | Deterministic tally: consensus score, decision by veto policy, ranked findings, dissents | `jjv/voter.py`, `jjv/verdicts.py` |
 | Evaluation | Nash broker vs weighted voting: offline simulation plus a live-comparison hook | `jjv/eval_broker.py` |
-| Tests and CI | 404 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
+| Tests and CI | 409 unit tests; GitHub Actions runs them on Python 3.10–3.12 along with the evaluation | `tests/`, `.github/workflows/tests.yml` |
 | Design docs | The full swarm architecture and roadmap, the broker spec, the domain-agent library map, and the catalog | `docs/` |
 
 **Status.** This repository holds the full archetype registry (58 archetypes, 25 presets, every preset member defined), the negotiation layer and its evaluation, the orchestrator, the Voter, and a CLI. Still to come: the FastAPI backend and web UI, and the live broker comparison on real subjects.

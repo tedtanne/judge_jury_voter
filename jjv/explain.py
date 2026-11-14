@@ -83,11 +83,15 @@ def judge_sum(verdict: dict) -> str:
 
 def _select(run: dict, rec: dict) -> list[str]:
     names = [registry.get(p["id"])["name"] for p in run["panel"]]
-    return [f"[{step_label('SELECT')}] who reviews, and how it will be settled",
-            f"  {len(names)} Judges: {', '.join(names)}",
-            f"  Settled by: {rec.get('aggregator', 'unknown')}",
-            f"  Spending limit ${run['config']['max_usd']:g}, "
-            f"revision budget {run['config']['revision_budget']:g} cost units"]
+    out = [f"[{step_label('SELECT')}] who reviews, and how it will be settled",
+           f"  {len(names)} Judges: {', '.join(names)}",
+           f"  Settled by: {rec.get('aggregator', 'unknown')}",
+           f"  Spending limit ${run['config']['max_usd']:g}, "
+           f"revision budget {run['config']['revision_budget']:g} cost units"]
+    models = sorted({c["model"] for c in run.get("calls", []) if c.get("model")})
+    if models:
+        out.append(f"  Models that answered: {', '.join(models)}")
+    return out
 
 
 def _judge(rec: dict) -> list[str]:

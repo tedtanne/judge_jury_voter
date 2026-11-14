@@ -92,3 +92,9 @@ def test_catalog_is_current():
     on_disk = (ROOT / "docs" / "archetypes.md").read_text(encoding="utf-8")
     assert on_disk == registry.catalog(), (
         "docs/archetypes.md is stale; run: python -m jjv.registry > docs/archetypes.md")
+
+
+def test_validate_rejects_tools_beyond_read_only(monkeypatch):
+    rogue = {**registry.get("staff_engineer"), "id": "rogue", "tools": ["Read", "Bash"]}
+    monkeypatch.setattr(registry, "ALL_ARCHETYPES", registry.ALL_ARCHETYPES + [rogue])
+    assert any("rogue: tool 'Bash' is not read-only" in p for p in registry.validate())

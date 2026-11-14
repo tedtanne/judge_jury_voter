@@ -376,6 +376,42 @@ def test_spending_stops_at_the_limit_and_each_call_gets_a_share():
     assert fake.requests[0].max_usd == pytest.approx(2.0 / len(PHYSICS))
 
 
+def test_jury_caps_follow_what_each_judge_cost_in_the_judge_round():
+    class Priced(Fake):
+        async def ask(self, request):
+            self.cost = 0.3 if request.label.endswith("staff_engineer") else 0.1
+            return await super().ask(request)
+
+    fake = Priced()
+    panel = convene(ids=["staff_engineer", "product_lead", "technical_writer"])
+    run = review(fake, panel, max_usd=10.0)
+    assert run["status"] == "done"
+    caps = {r.label.split(":")[1]: r.max_usd for r in fake.requests if r.label.startswith("jury")}
+    # The costly Judge gets a share in proportion to its spend; the cheap ones get the mean's
+    # share; the caps still add up to what was left after the Judge round.
+    assert caps["staff_engineer"] > caps["product_lead"] == caps["technical_writer"]
+    assert sum(caps.values()) == pytest.approx(10.0 - 0.5)
+    assert caps["staff_engineer"] == pytest.approx(9.5 * 0.3 / (0.3 + 2 * 0.5 / 3))
+
+
+def test_run_records_every_call_with_the_model_that_answered():
+    class Named(Fake):
+        async def ask(self, request):
+            reply = await super().ask(request)
+            return Reply(reply.data, reply.cost, "claude-test-1")
+
+    run = review(Named(), convene(ids=["staff_engineer", "product_lead"]))
+    assert {c["phase"] for c in run["calls"]} == {"judge", "jury"}
+    assert all(c["model"] == "claude-test-1" and c["cost"] == 0.01 for c in run["calls"])
+    assert len(run["calls"]) == 4
+
+
+def test_an_archetype_with_tools_beyond_read_only_is_refused():
+    rogue = {**get("staff_engineer"), "tools": ["Read", "Bash"]}
+    with pytest.raises(ValueError, match="not read-only"):
+        review(Fake(), [rogue, get("product_lead")])
+
+
 def test_queued_calls_see_what_earlier_calls_spent():
     class Yielding(Fake):
         async def ask(self, request):
