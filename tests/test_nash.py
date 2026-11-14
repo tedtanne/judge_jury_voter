@@ -95,3 +95,27 @@ def test_large_panels_fall_back_to_local_search():
     findings = [F(f"issue {i}", "minor") for i in range(20)]
     s = NashBroker(budget=5).solve([V("eng", findings)])
     assert not s.exact and s.cost <= 5 and s.pareto_optimal is None
+
+
+def test_worked_example_matches_spec():
+    """The worked example in docs/nash-agent.md, budget 7. Keep the two in step."""
+    s = NashBroker(budget=7).solve([
+        V("security", [F("partner tokens not scoped per tenant", "blocker", "authz"),
+                       F("add key rotation", "major", "authz")],
+          weight=1.2, veto=True, veto_dimensions=["authz"]),
+        V("simplifier", [F("drop the plugin marketplace", "major", "complexity")],
+          weight=1.4, veto=True, veto_dimensions=["complexity"]),
+        V("product_lead", [F("enterprise tier has no pricing", "blocker", "pricing"),
+                           F("confusing onboarding", "minor")],
+          weight=0.9, recommendation="reject", endorses=["add key rotation"]),
+        V("staff_engineer", [F("no backpressure on event ingest", "major")], weight=1.3),
+    ])
+    assert s.forced == ["partner-tokens-not-scoped-per-tenant"]
+    assert sorted(set(s.address_now) - set(s.forced)) == [
+        "add-key-rotation", "drop-the-plugin-marketplace"]
+    assert sorted(s.deferred) == [
+        "confusing-onboarding", "enterprise-tier-has-no-pricing",
+        "no-backpressure-on-event-ingest"]
+    assert {c["by"] for c in s.cheap_talk} == {"product_lead"}
+    assert s.gains["staff_engineer"] == -0.25
+    assert s.pareto_optimal and s.is_equilibrium
