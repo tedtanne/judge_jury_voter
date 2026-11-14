@@ -199,7 +199,9 @@ def test_a_repo_goes_only_through_the_allow_list(tmp_path):
 
 
 def test_the_real_mcp_surface_lists_tools_and_answers_refusals(tmp_path):
-    pytest.importorskip("mcp")
+    mcp = pytest.importorskip("mcp")
+    if not hasattr(mcp, "Client"):
+        pytest.skip("mcp older than 2.3 has no Client")
     from mcp import Client
     from jjv.mcp_server import build_server
 

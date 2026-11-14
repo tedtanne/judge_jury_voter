@@ -1,7 +1,4 @@
-# Live runs only. Tests and CI do not need these.
-# claude-agent-sdk runs Judges locally; anthropic is the public API for --consult and
-# --judge-provider. The other providers use the standard library.
--r requirements.txt
-claude-agent-sdk>=0.2.178,<0.3
-anthropic>=2.6,<3
-mcp>=2.3,<3
+# Live runs: the Claude Agent SDK runs Judges locally, anthropic is the public API for
+# --consult and --judge-provider, and mcp serves JJV to an MCP client.
+# Equivalent to: pip install -e ".[live,test]"
+-e .[live,test]

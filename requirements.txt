@@ -1,4 +1,3 @@
-# Runtime: the Nash broker, domain archetypes and evaluation use only the standard library.
-# Test tooling:
-pytest>=8
-pytest-cov>=5
+# Tests and the broker evaluation. The package itself needs only the standard library;
+# pins live in pyproject.toml. Equivalent to: pip install -e ".[test]"
+-e .[test]

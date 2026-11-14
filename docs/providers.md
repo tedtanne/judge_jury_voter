@@ -7,7 +7,7 @@ updated: 2026-11-06
 
 # Model providers
 
-This page is optional. Native JJV needs none of it: `python -m jjv.cli review ...` runs on the Claude Agent SDK, with no settings file or provider keys. See [Ways to run JJV](../README.md#ways-to-run-jjv).
+This page is optional. Native JJV needs none of it: `jjv review ...` runs on the Claude Agent SDK, with no settings file or provider keys. See [Ways to run JJV](../README.md#ways-to-run-jjv).
 
 The harness assumes nothing about who runs it. Every provider, Claude included, is reached through its public API with your own key. Nothing here has run against a live provider yet; the tests use simulated replies.
 
@@ -16,12 +16,12 @@ The harness assumes nothing about who runs it. Every provider, Claude included, 
 1. Copy the settings file: `cp docs/providers.example.json ~/.jjv/providers.json`.
 2. Fill in a model name and the price per million tokens for each provider you use. Prices are required, because these APIs report tokens rather than dollars, so a spending limit cannot work without them. Check them against each provider's price list.
 3. Put keys in your environment, never in the settings file: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY`.
-4. Run `pip install -r requirements-live.txt`.
+4. Install the live extra: `pip install -e ".[live]"` from a checkout, or see [Install](../README.md#1-install).
 
 ## Ask several models, then run the panel
 
 ```bash
-python -m jjv.cli review plan.md --panel "Thinkers Panel" \
+jjv review plan.md --panel "Thinkers Panel" \
   --consult claude,openai,xai,gemini --consult-usd 2
 ```
 
@@ -32,7 +32,7 @@ Your content goes to every provider you name, under that provider's terms.
 ## Run the Judges on a provider
 
 ```bash
-python -m jjv.cli review plan.md --panel "Thinkers Panel" --judge-provider openai
+jjv review plan.md --panel "Thinkers Panel" --judge-provider openai
 ```
 
 Without `--judge-provider`, Judges run on the local Claude Agent SDK, as before. `--repo` works only with that backend, because the guard that keeps file tools inside a repository is built on its hooks. Judges on a provider use one model for the whole panel, and read only the subject.
@@ -54,18 +54,18 @@ Any service that speaks the OpenAI chat format needs only settings:
 The server lets Claude Code, Claude Desktop and other MCP clients call JJV. It runs on your machine over stdio:
 
 ```bash
-pip install -r requirements-live.txt
-python -m jjv.mcp_server
+pip install -e ".[live]"
+jjv-mcp
 ```
 
-Most clients take a command and its environment, for example:
+Most clients take a command and its environment. Use the full path to `jjv-mcp` (`which jjv-mcp`), since clients rarely inherit your shell's `PATH`:
 
 ```json
-{"mcpServers": {"jjv": {"command": "/path/to/.venv/bin/python",
-                        "args": ["-m", "jjv.mcp_server"],
-                        "cwd": "/path/to/judge_jury_voter",
+{"mcpServers": {"jjv": {"command": "/path/to/.venv/bin/jjv-mcp",
                         "env": {"JJV_MCP_PAID": "0"}}}}
 ```
+
+The README's [Set up the MCP server](../README.md#set-up-the-mcp-server) has the `claude mcp add` one-liner.
 
 **Free tools** never call a model: `list_panels`, `list_archetypes`, `list_providers`, `get_limits`, `get_run`, `explain_run`, and `settle`, which replays the bargain on a saved run at a different budget.
 

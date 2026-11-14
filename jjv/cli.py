@@ -1,11 +1,13 @@
 """Run a panel from the terminal.
 
-    python -m jjv.cli review docs/design.md --panel "Physics of Compute"
-    git diff | python -m jjv.cli review - --discipline code
-    python -m jjv.cli review --url https://example.com/post --panel "Writers' Room"
-    python -m jjv.cli generate brief.txt --panel "Docs Crit" --out draft.md
-    python -m jjv.cli suggest --url https://example.com/post
-    python -m jjv.cli explain RUN_ID
+    jjv review docs/design.md --panel "Physics of Compute"
+    git diff | jjv review - --discipline code
+    jjv review --url https://example.com/post --panel "Writers' Room"
+    jjv generate brief.txt --panel "Docs Crit" --out draft.md
+    jjv suggest --url https://example.com/post
+    jjv explain RUN_ID
+
+``python -m jjv.cli`` does the same from a checkout that is not installed.
 
 Live runs call Claude and spend money, up to --max-usd. Run records go to ~/.jjv/runs,
 outside any repo, because Judges must not be able to read them.
@@ -27,6 +29,7 @@ from jjv.backend import BackendError, ClaudeBackend
 from jjv.cache import cache_key, fingerprint, lookup, remember
 from jjv.explain import explain, step_label
 from jjv.fetch import FetchError, fetch_page
+from jjv import __version__
 from jjv.harness import consult, load_providers, make_backend, save_opinions, with_opinions
 from jjv.orchestrator import AGGREGATORS, Config, Orchestrator, convene
 from jjv.parse import can_parse, parse_file
@@ -35,7 +38,8 @@ from jjv.suggest import as_data, budget_warning, render, suggest_panel
 
 
 def parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(prog="python -m jjv.cli", description=__doc__.split("\n\n")[0])
+    ap = argparse.ArgumentParser(prog="jjv", description=__doc__.split("\n\n")[0])
+    ap.add_argument("--version", action="version", version=f"jjv {__version__}")
     ap.add_argument("mode", choices=["review", "generate", "suggest", "explain"])
     ap.add_argument("input", nargs="?", help="file holding the subject or brief; - reads "
                     "stdin. For explain, a run id")

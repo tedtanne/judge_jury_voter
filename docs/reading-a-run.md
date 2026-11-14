@@ -10,9 +10,9 @@ updated: 2026-11-07
 A run reports what it is doing while it works, then what it decided, then, if you ask, how it got there.
 
 ```bash
-python -m jjv.cli suggest plan.md                       # which panel, and what budget
-python -m jjv.cli review plan.md --panel "The Nash Table" --max-usd 5 --explain
-python -m jjv.cli explain RUN_ID                        # the same explanation later, free
+jjv suggest plan.md                       # which panel, and what budget
+jjv review plan.md --panel "The Nash Table" --max-usd 5 --explain
+jjv explain RUN_ID                        # the same explanation later, free
 ```
 
 The example on this page is a real run: a short design for a rate limiter, reviewed by The Nash Table with `--deliberation-rounds 2`. It took 3 minutes 34 seconds and cost $2.62.
@@ -166,7 +166,7 @@ This looks like: Python module: deterministic tally of review verdicts, with dec
    This is production Python code with a docstring, functions, and edge-case handling, so it fits a code review of a pull request.
 
 Run the top pick with:
-  python -m jjv.cli review jjv/voter.py --panel 'FAANG Code Review' --max-usd 4
+  jjv review jjv/voter.py --panel 'FAANG Code Review' --max-usd 4
 ```
 
 `suggest` makes one small model call, with no tools, on a sample of the content. It gives one to three panels, or says none fits. It never starts a paid run. The reasons come from a model that read the content, so treat them as untrusted. The command is built by code from the preset name. Costs are rough, and it has been tried on only four samples.

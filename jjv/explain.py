@@ -1,6 +1,6 @@
 """Show how each section of a run reached its result, from the saved record.
 
-    python -m jjv.cli explain RUN_ID
+    jjv explain RUN_ID
 
 Free: this reads the record and calls no model. The sums are recomputed here from the same
 inputs the run used, so a reader can check them by hand.
