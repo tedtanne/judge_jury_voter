@@ -19,6 +19,11 @@ class Result:
                                   errors=None, result="text", structured_output=None) | kw)
 
 
+class Assistant:
+    def __init__(self, model):
+        self.model = model
+
+
 @pytest.fixture
 def sdk(monkeypatch):
     state = SimpleNamespace(options=None, messages=[Result()], raises=None)
@@ -33,7 +38,7 @@ def sdk(monkeypatch):
     monkeypatch.setitem(sys.modules, "claude_agent_sdk", SimpleNamespace(
         ClaudeAgentOptions=lambda **kw: SimpleNamespace(**kw), ClaudeSDKError=SDKError,
         HookMatcher=lambda **kw: SimpleNamespace(**kw),
-        ResultMessage=Result, query=query))
+        ResultMessage=Result, AssistantMessage=Assistant, query=query))
     return state
 
 
@@ -59,6 +64,12 @@ def test_sdk_exceptions_become_backend_errors_with_cost(sdk):
     with pytest.raises(BackendError) as e:
         ask(max_usd=0.4)
     assert e.value.cost == 0.4 and e.value.retry
+
+
+def test_the_model_that_answered_is_reported(sdk):
+    assert ask().model is None       # nothing but a result: the SDK named no model
+    sdk.messages = [Assistant(model="claude-opus-5-5"), Result()]
+    assert ask().model == "claude-opus-5-5"
 
 
 def test_hitting_the_budget_does_not_retry_and_uses_the_real_cost(sdk):

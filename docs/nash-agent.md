@@ -101,7 +101,7 @@ Seeds 1–3 agree. In these simulated panels the broker is about 6–16× more r
 ## How it is wired into the swarm
 
 - **Registry.** `NASH_AGENT` and its presets are in `jjv/registry.py`. It is `library=True`, so it joins only through a panel.
-- **Jury phase.** On every panel, unless `--aggregator weighted_vote` is set, the orchestrator solves the settlement and shows it to each Judge after the fenced digest. It solves under anonymous aliases, so the printed math names no archetype.
+- **Jury phase.** On every panel, unless `--aggregator weighted_vote` is set, the orchestrator solves the settlement and shows it to each Judge after the digest, inside a fence of its own, because it prints finding titles the Judges wrote. It solves under anonymous aliases, so the printed math names no archetype.
 - **Vote phase.** The broker solves again on the final verdicts to pick the fix list. Both settlements are stored with the run.
 - **Verdict fields.** `endorses` and `change_aversion` are collected in the Jury round. Without a Jury, `change_aversion` falls back to 0.25.
 - **Not a player.** Nash_Agent's own findings reach the Voter but are not bargained over, unless a Judge links its finding to one of them.

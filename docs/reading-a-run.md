@@ -102,6 +102,8 @@ A low score does not mean bad work. Judges are built to find faults, and most ru
 
 Each section shows how its output was computed.
 
+**Panel.** Who reviewed, how the fix list is settled, the spending limit and revision budget, and the models that answered, as the SDK reported them. A tier such as "opus" in an archetype means a different model over time, so the run record keeps the id.
+
 **Judge scores.** Each rubric score is multiplied by its weight, then divided by the total weight:
 
 ```
