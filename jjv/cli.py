@@ -6,6 +6,7 @@
     jjv generate brief.txt --panel "Docs Crit" --out draft.md
     jjv suggest --url https://example.com/post
     jjv explain RUN_ID
+    jjv render RUN_ID --out run.html
 
 ``python -m jjv.cli`` does the same from a checkout that is not installed.
 
@@ -28,6 +29,7 @@ from jjv import voter
 from jjv.backend import BackendError, ClaudeBackend
 from jjv.cache import cache_key, fingerprint, lookup, remember
 from jjv.explain import explain, step_label
+from jjv.render import render as render_page
 from jjv.fetch import FetchError, fetch_page
 from jjv import __version__
 from jjv.harness import consult, load_providers, make_backend, save_opinions, with_opinions
@@ -40,9 +42,9 @@ from jjv.suggest import as_data, budget_warning, render, suggest_panel
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="jjv", description=__doc__.split("\n\n")[0])
     ap.add_argument("--version", action="version", version=f"jjv {__version__}")
-    ap.add_argument("mode", choices=["review", "generate", "suggest", "explain"])
+    ap.add_argument("mode", choices=["review", "generate", "suggest", "explain", "render"])
     ap.add_argument("input", nargs="?", help="file holding the subject or brief; - reads "
-                    "stdin. For explain, a run id")
+                    "stdin. For explain and render, a run id")
     ap.add_argument("--url", help="review the text of this web page instead of a file")
     ap.add_argument("--allow-lost-math", action="store_true",
                     help="run even if formulas could not be read from the content")
@@ -75,7 +77,8 @@ def parser() -> argparse.ArgumentParser:
     ap.add_argument("--max-rounds", type=int, default=3)
     ap.add_argument("--threshold", type=float, default=4.0)
     ap.add_argument("--store", default=str(Path.home() / ".jjv" / "runs"))
-    ap.add_argument("--out", help="generate: write the final draft here")
+    ap.add_argument("--out", help="generate: write the final draft here. render: write the "
+                    "page here instead of stdout")
     return ap
 
 
@@ -197,14 +200,34 @@ def gather_opinions(args, text: str) -> tuple[list, str, dict]:
     return opinions, subject, labels
 
 
-def explain_saved(args) -> int:
+def load_saved(args) -> dict | int:
+    """The run record named on the command line, or the exit code of a refusal."""
     run_id = args.input or ""
     if not re.fullmatch(r"[0-9a-f]{12}", run_id):
-        return fail(args, "explain needs a run id", 2)
+        return fail(args, f"{args.mode} needs a run id", 2)
     try:
-        run = json.loads((Path(args.store) / f"{run_id}.json").read_text())
+        return json.loads((Path(args.store) / f"{run_id}.json").read_text())
     except (OSError, ValueError) as e:
         return fail(args, f"cannot read run {run_id}: {e}", 2)
+
+
+def render_saved(args) -> int:
+    run = load_saved(args)
+    if isinstance(run, int):
+        return run
+    page = render_page(run)
+    if args.out:
+        Path(args.out).write_text(page, encoding="utf-8")
+        print(f"Wrote {args.out}", file=sys.stderr)
+    else:
+        print(page, end="")
+    return 0
+
+
+def explain_saved(args) -> int:
+    run = load_saved(args)
+    if isinstance(run, int):
+        return run
     if args.json:
         print(json.dumps(to_data(run, store=args.store) | {"explanation": explain(run)},
                          indent=1))
@@ -282,6 +305,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     if args.mode == "explain":
         return explain_saved(args)
+    if args.mode == "render":
+        return render_saved(args)
     if (args.input is None) == (args.url is None):
         return fail(args, "give exactly one of a file or --url", 2)
     panel = None
