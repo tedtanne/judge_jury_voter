@@ -2,6 +2,13 @@
 
 ![tests](https://github.com/tedtanne/judge_jury_voter/actions/workflows/tests.yml/badge.svg)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/hero-dark.svg">
+  <img src="docs/hero-light.svg" alt="Animated diagram: every bundle of fixes a panel could choose as particles, the Nash bargaining search climbing within the budget to the settlement, the kernel's equations, and five Judges converging from independent scores to a consensus." width="1200">
+</picture>
+
+<sub>Computed, not drawn: the particles are every bundle a five-Judge panel could choose, scored by the real kernel; the Judges are a live run. Regenerate with `python scripts/make_hero.py`.</sub>
+
 A swarm of AI review agents. Each agent is an *archetype* of a best-in-the-business professional. Together they **review** and **generate** code, documentation and designs.
 
 - **Judges** score a subject independently.
