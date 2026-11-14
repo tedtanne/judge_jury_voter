@@ -228,8 +228,9 @@ def render(theme: str, g: dict) -> str:
 
     # Caption under the plane.
     n = len(g["bundles"])
-    out.append(f'<text x="{px0}" y="{py1 + 52}" font-family="{sans}" font-size="15" fill="{c["ink2"]}">'
-               f'{n} bundles a five-Judge panel could choose, drawn from the kernel. '
+    out.append(f'<text x="{px0}" y="{py1 + 52}" font-family="{sans}" font-size="14" fill="{c["ink2"]}">'
+               f'{n} bundles a five-Judge panel could choose, drawn from the kernel.</text>'
+               f'<text x="{px0}" y="{py1 + 72}" font-family="{sans}" font-size="14" fill="{c["ink2"]}">'
                f'Solid: fits the budget and keeps every veto. Hollow: no deal.</text>')
 
     # --- equations -------------------------------------------------------------------
@@ -237,27 +238,27 @@ def render(theme: str, g: dict) -> str:
     out.append(f'<text x="{ex}" y="{py0 + 2}" font-family="{serif}" font-size="38" font-weight="700" '
                f'fill="{c["ink"]}" letter-spacing="-.5">Judge <tspan fill="{c["accent"]}">·</tspan> Jury '
                f'<tspan fill="{c["accent"]}">·</tspan> Voter</text>')
-    out.append(f'<text x="{ex}" y="{py0 + 30}" font-family="{sans}" font-size="16" fill="{c["ink2"]}">'
-               'A swarm of review agents, settled by Nash bargaining instead of a vote.</text>')
+    out.append(f'<text x="{ex}" y="{py0 + 30}" font-family="{sans}" font-size="15" fill="{c["ink2"]}">'
+               'A swarm of review agents, settled by bargaining, not a vote.</text>')
 
     eqs = [
         (1.0, "uᵢ(S) = Σ<tspan baseline-shift='sub' font-size='13'>f∈S</tspan> vᵢ(f) − aᵢ · c(S) / n",
-         "each Judge's utility: the findings it values, less its share of the rework"),
+         "a Judge's utility: the findings it values, less its share of the rework"),
         (2.2, "D = the credible vetoes  ·  feasible S ⊇ D,  c(S) ≤ B",
-         "a blocker counts only when a veto stands behind it; the rest is cheap talk"),
+         "a blocker counts only with a veto behind it; the rest is cheap talk"),
         (3.4, "max<tspan baseline-shift='sub' font-size='13'>S</tspan> Π<tspan baseline-shift='sub' font-size='13'>i</tspan> (uᵢ(S) − uᵢ(D))<tspan baseline-shift='super' font-size='13'>wᵢ</tspan>",
          "Nash (1950): the weighted product of each party's gain over no deal"),
         (4.6, "= max<tspan baseline-shift='sub' font-size='13'>S</tspan> Σ<tspan baseline-shift='sub' font-size='13'>i</tspan> wᵢ φ(gᵢ),   φ(g) = ln(1+g) if g > 0, else g",
-         "the kernel's smoothed form: concave on gains, so surplus is spread, not piled"),
-        (5.8, "uᵢ<tspan baseline-shift='super' font-size='13'>area</tspan>(S*) ≥ uᵢ<tspan baseline-shift='super' font-size='13'>area</tspan>(D)  ∀ veto-holders  ⇒  accept is an equilibrium",
-         "no holder gains by blocking in its own area, so ratifying S* is a Nash equilibrium"),
+         "the kernel's form: concave on gains, so surplus is spread, not piled"),
+        (5.8, "uᵢ<tspan baseline-shift='super' font-size='13'>area</tspan>(S*) ≥ uᵢ<tspan baseline-shift='super' font-size='13'>area</tspan>(D)   for every veto-holder",
+         "blocking in its own area never pays, so ratifying S* is a Nash equilibrium"),
     ]
     y = py0 + 78
     for at, formula, note in eqs:
         out.append(f'<g opacity="0">{fade(at, at + 0.7)}'
                    f'<text x="{ex}" y="{y}" font-family="{serif}" font-size="19" font-style="italic" '
                    f'fill="{c["ink"]}">{formula}</text>'
-                   f'<text x="{ex}" y="{y + 22}" font-family="{sans}" font-size="14" fill="{c["dim"]}">'
+                   f'<text x="{ex}" y="{y + 22}" font-family="{sans}" font-size="13" fill="{c["dim"]}">'
                    f'{esc(note)}</text></g>')
         y += 62
 
@@ -271,7 +272,7 @@ def render(theme: str, g: dict) -> str:
         col = c["approve"] if gain > 0 else c["reject"]
         out.append(f'<g opacity="0">{fade(land + 0.4 + i * 0.12, land + 0.9 + i * 0.12)}'
                    f'<text x="{gx + i * 100}" y="{gy}" font-family="{mono}" font-size="14" fill="{c["ink2"]}">'
-                   f'{esc(pid)}</text>'
+                   f'Judge {chr(65 + i)}</text>'
                    f'<text x="{gx + i * 100}" y="{gy + 20}" font-family="{mono}" font-size="16" '
                    f'font-weight="700" fill="{col}">{gain:+.2f}</text></g>')
 
