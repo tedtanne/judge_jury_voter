@@ -11,6 +11,8 @@
 
 A swarm of AI review agents. Each agent is an *archetype* of a best-in-the-business professional. Together they **review** and **generate** code, documentation and designs.
 
+JJV is not tied to one model. Judges run on Claude through the Agent SDK by default, or on OpenAI, xAI, Gemini or any OpenAI-compatible endpoint, a local model included, through their public APIs with your own keys. A run can ask several models first and hand their answers to the panel unbranded, and JJV itself can be called from any MCP client. See [Ways to run JJV](#ways-to-run-jjv).
+
 - **Judges** score a subject independently.
 - **The Jury** lets them see an anonymized digest of each other's verdicts and revise.
 - **The Voter** aggregates the final verdicts into a decision and a ranked action list.
@@ -53,7 +55,7 @@ python -m jjv.eval_broker --trials 300 --seed 7    # Nash broker vs weighted vot
 
 Everything except live runs uses the Python standard library alone. `requirements.txt` only adds the test tooling.
 
-To run a real panel, install the Claude Agent SDK. Live runs call Claude and spend money, up to `--max-usd` (default $5, a soft limit checked between calls). Each call gets a share of what is left; in the Jury round that share follows what the Judge cost in the Judge round. Run records go to `~/.jjv/runs`, outside any repo, because they name who is behind each anonymous Judge and Judges can read the repo they review. Keep secrets gitignored too: Judges cannot read files named like secrets, but a `Grep` can search one that git does not ignore. A store inside `--repo` is refused.
+To run a real panel, install `requirements-live.txt` and pick a backend. By default Judges run on Claude through the Agent SDK, signed in through Claude Code or `ANTHROPIC_API_KEY`. `--judge-provider openai` (or `xai`, `gemini`, `claude`, or a name from your `~/.jjv/providers.json`) runs them on that provider's public API instead, and `--consult` asks several models before the panel sits. Live runs spend money, up to `--max-usd` (default $5, a soft limit checked between calls). Each call gets a share of what is left; in the Jury round that share follows what the Judge cost in the Judge round. Run records go to `~/.jjv/runs`, outside any repo, because they name who is behind each anonymous Judge and Judges can read the repo they review. Keep secrets gitignored too: Judges cannot read files named like secrets, but a `Grep` can search one that git does not ignore. A store inside `--repo` is refused.
 
 ```bash
 pip install -r requirements-live.txt
@@ -65,6 +67,8 @@ python -m jjv.cli suggest --url https://example.com/post   # recommend a panel a
 python -m jjv.cli review --url https://example.com/post --panel "Paper Review"
 python -m jjv.cli explain RUN_ID                           # how a saved run reached its result, free
 python -m jjv.cli review plan.md --panel "Thinkers Panel" --consult claude,openai,xai,gemini
+python -m jjv.cli review plan.md --panel "Thinkers Panel" --judge-provider openai   # Judges on another provider
+python -m jjv.mcp_server                                   # serve JJV to an MCP client
 ```
 
 While a run works, status lines show elapsed time, money spent, the step (`2/4 JUDGE`) and how many Judges have reported. When nothing has happened for 15 seconds, a line says it is still working and who it is waiting on. Convergence lines show how far apart the Judges are, how many moved in each round, how many name the same fix list, how much of the proposed fix list survived, and how each draft scored against its target. `review` warns first if `--max-usd` looks too small. Add `--explain` to see how each section reached its output, with the sums written out.
@@ -89,14 +93,14 @@ A paper can take a few minutes to read, and `suggest` followed by `review` reads
 
 ### Ways to run JJV
 
-The native way needs no harness, no MCP server and no settings file. The others are optional, and only apply when you ask for them.
+Four ways, and they combine. The default needs no settings file. The provider paths are built and tested against simulated replies, but have not yet run against a live provider, so expect to be the first.
 
 | Way | How | What you need |
 |---|---|---|
-| **Native** | `python -m jjv.cli review ...` | The Claude Agent SDK, signed in through Claude Code or with `ANTHROPIC_API_KEY` |
-| **Several models first** | Add `--consult claude,openai,xai,gemini` | Native setup, plus provider keys and `~/.jjv/providers.json` |
-| **Judges on a public API** | Add `--judge-provider openai` | Provider key and `~/.jjv/providers.json`. No Claude Code needed |
-| **From an AI client** | `python -m jjv.mcp_server` | Nothing extra for free tools. Paid tools also need `JJV_MCP_PAID=1` and the setup for the backend they use |
+| **Default: Claude Agent SDK** | `python -m jjv.cli review ...` | Signed in through Claude Code, or `ANTHROPIC_API_KEY`. The only way that supports `--repo`, because the guard that keeps Judges inside a repository is built on the SDK's hooks |
+| **Judges on another provider** | Add `--judge-provider openai`, `xai`, `gemini`, `claude`, or a name you define | That provider's key in your environment and `~/.jjv/providers.json` with model names and prices. Any OpenAI-compatible endpoint works, including a local server. No Claude Code needed |
+| **Several models first** | Add `--consult claude,openai,xai,gemini` | Keys for the models you name and `~/.jjv/providers.json`. Each answers the subject, the answers are shuffled and labelled "Model 1", "Model 2"…, and the Judges weigh them without knowing the brand |
+| **From an MCP client** | `python -m jjv.mcp_server` | Nothing extra for the free tools (panels, archetypes, saved runs, replaying a bargain). Paid `review` and `generate` need `JJV_MCP_PAID=1` and the setup for whichever backend they use |
 
 ### From an app
 
