@@ -297,6 +297,12 @@ def render(theme: str, g: dict) -> str:
                f'<text x="{sc(2) - 5:.1f}" y="{sy0 - 86}" text-anchor="end" font-family="{mono}" '
                f'font-size="12.5" fill="{c["reject"]}">reject &lt; 2</text>')
     move0, move1 = 6.0, 8.4
+    # Consensus marker, drawn first so the Judges' names paint over its line.
+    cx = sc(CONSENSUS)
+    out.append(f'<g opacity="0">{fade(move1 + 0.4, move1 + 1.0)}'
+               f'<line x1="{cx:.1f}" y1="{sy0 - 100}" x2="{cx:.1f}" y2="{sy0 + 10}" stroke="{c["accent"]}" stroke-width="2.5"/>'
+               f'<text x="{cx:.1f}" y="{sy0 + 48}" text-anchor="middle" font-family="{serif}" font-size="18" '
+               f'font-style="italic" fill="{c["ink"]}">consensus {CONSENSUS} · REVISE</text></g>')
     # Scores bunch up, so labels take three rows, dealt out in score order: neighbours on the
     # scale never share a row, before or after the move.
     order = sorted(range(len(JUDGES)), key=lambda i: JUDGES[i][1])
@@ -321,12 +327,6 @@ def render(theme: str, g: dict) -> str:
                    f'keyTimes="0;{t(move0)};{t(move1)};{t(CYCLE - 0.6)};1" calcMode="spline" '
                    f'keySplines="0 0 1 1;.2 .8 .2 1;0 0 1 1;0 0 1 1"/>'
                    f'{fade(0.6 + i * 0.15, 1.0 + i * 0.15)}{esc(name)}</text></g>')
-    # Consensus marker.
-    cx = sc(CONSENSUS)
-    out.append(f'<g opacity="0">{fade(move1 + 0.4, move1 + 1.0)}'
-               f'<line x1="{cx:.1f}" y1="{sy0 - 100}" x2="{cx:.1f}" y2="{sy0 + 10}" stroke="{c["accent"]}" stroke-width="2.5"/>'
-               f'<text x="{cx:.1f}" y="{sy0 + 48}" text-anchor="middle" font-family="{serif}" font-size="18" '
-               f'font-style="italic" fill="{c["ink"]}">consensus {CONSENSUS} · REVISE</text></g>')
     out.append(f'<text x="{ax1}" y="{sy0 + 48}" text-anchor="end" font-family="{mono}" font-size="12.5" '
                f'fill="{c["dim"]}">run 94f38f3fa5af · The Nash Table · {len(JUDGES)} Judges</text>')
 
