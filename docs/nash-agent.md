@@ -3,7 +3,7 @@ title: Nash_Agent — equilibrium broker archetype
 description: Spec for Nash_Agent, the game-theoretic negotiation archetype in Judge_Jury_Voter — persona, rubric, the bargaining kernel it runs in the Jury round, and how to wire it into the swarm.
 status: draft
 owner: Ted
-updated: 2026-10-17
+updated: 2026-11-14
 ---
 
 # Nash_Agent
@@ -62,12 +62,14 @@ The archetype record now carries a `grounded_in` list of those papers. The kerne
 
 ### Worked example (budget 7)
 
-| Judge | Findings / behavior |
+| Judge (weight) | Findings / behavior |
 |---|---|
-| Security (veto: authz) | Blocker: partner tokens not scoped per tenant |
-| Simplifier (veto: complexity) | Major: drop the plugin marketplace |
-| Product Lead | Blocker: enterprise tier has no pricing (no veto behind it); recommends reject |
-| Staff Engineer | Major: no backpressure on event ingest |
+| Security (1.2, veto: authz) | Blocker: partner tokens not scoped per tenant. Major: add key rotation |
+| Simplifier (1.4, veto: complexity) | Major: drop the plugin marketplace |
+| Product Lead (0.9) | Blocker: enterprise tier has no pricing (no veto behind it). Minor: confusing onboarding. Endorses key rotation; recommends reject |
+| Staff Engineer (1.3) | Major: no backpressure on event ingest |
+
+Every Judge has the default change aversion of 0.25. `tests/test_nash.py::test_worked_example_matches_spec` runs this panel and checks the result below.
 
 Result:
 
@@ -76,7 +78,7 @@ Result:
 - **Deferred**: backpressure, onboarding, and enterprise pricing.
 - The Product Lead's "blocker" and "reject" were recorded as cheap talk.
 
-The settlement is Pareto-optimal, and accepting it is an equilibrium. The Staff Engineer ends at −1.00: it has no veto, and its finding lost the budget. The digest shows this number openly.
+The settlement is Pareto-optimal, and accepting it is an equilibrium. The Staff Engineer ends at −0.25: it has no veto, its finding lost the budget, and it still bears a quarter share of the extra rework. The digest shows this number openly.
 
 ## Evaluation
 
@@ -111,7 +113,7 @@ Seeds 1–3 agree. In these simulated panels the broker is about 6–16× more r
 
 ## Decisions to confirm
 
-- **A veto reaches only its own area (decided 2026-11-04).** A veto-holder's feasibility check counts only findings on its veto dimensions, so a clean security review no longer blocks a documentation fix. A block removes the optional fixes in that area, and utility adds up across findings, so blocking never pays and acceptance stays an equilibrium. A holder can now show a negative total gain, because its rework cost elsewhere still counts in the Nash product. The cost is about 2 points of utilitarian efficiency in the simulation (96% to 94%). On live panels this check rarely binds, because each veto word has one holder and a Judge can tag only its own words. Vetoes act through forced blockers.
+- **A veto reaches only its own area (decided 2026-11-04).** A veto-holder's feasibility check counts only findings on its veto dimensions, so a clean security review no longer blocks a documentation fix. A block removes the optional fixes in that area, and utility adds up across findings, so blocking never pays and acceptance stays an equilibrium. A holder can now show a negative total gain, because its rework cost elsewhere still counts in the Nash product. With this check and the shared rework cost in place, utilitarian efficiency in the simulation is 0.957 on seed 7, the figure in the table above. On live panels this check rarely binds, because each veto word has one holder and a Judge can tag only its own words. Vetoes act through forced blockers.
 
 - **An unvetoed blocker can be deferred.** This is the purist position: without a credible threat behind it, a blocker is cheap talk. If some disciplines should never defer a blocker, give that archetype a veto on the relevant dimension; don't soften the kernel.
 - **Default budget is 8 cost units per revision**, about four majors. Tune it per panel.
